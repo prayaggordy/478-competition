@@ -4,6 +4,8 @@ author: "Prayag Gordy"
 format: html
 ---
 
+To run the code, download `neuron-synapse-prediction` folder from Kaggle and put it at the project level.
+
 ```{r}
 raw_train <- readr::read_csv("neuron-synapse-prediction/train_data.csv")
 feature_weights <- readr::read_csv("neuron-synapse-prediction/feature_weights.csv")
