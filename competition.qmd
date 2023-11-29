@@ -12,5 +12,36 @@ feature_weights <- readr::read_csv("neuron-synapse-prediction/feature_weights.cs
 morph_embeddings <- readr::read_csv("neuron-synapse-prediction/morph_embeddings.csv")
 ```
 
+```{r}
+df_joined <- raw_train |>
+	dplyr::left_join(
+		feature_weights |>
+			dplyr::rename_with(.fn = \(x) paste("pre", x, sep = "_")),
+		by = "pre_nucleus_id"
+	) |>
+	dplyr::left_join(
+		feature_weights |>
+			dplyr::rename_with(.fn = \(x) paste("post", x, sep = "_")),
+		by = "post_nucleus_id"
+	) |>
+	dplyr::left_join(
+		morph_embeddings |>
+			dplyr::rename_with(.fn = \(x) paste("pre", x, sep = "_")),
+		by = "pre_nucleus_id"
+	) |>
+	dplyr::left_join(
+		morph_embeddings |>
+			dplyr::rename_with(.fn = \(x) paste("post", x, sep = "_")),
+		by = "post_nucleus_id"
+	)
+```
 
+```{r}
+df_joined |> 
+	dplyr::summarize(dplyr::across(.cols = dplyr::everything(), 
+																 .fns = \(x) sum(is.na(x)))) |> 
+	tidyr::pivot_longer(cols = -ID) |> 
+	dplyr::filter(value != 0)
+```
 
+Missing about 25% of pre morph embeddings.

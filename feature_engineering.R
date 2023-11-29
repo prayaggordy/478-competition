@@ -24,37 +24,56 @@ ad_to_nucleus <- function(df) {
 # axonal to post_nucleus and dendritic to pre_nucleus distances (maybe this distance metric is useful?)
 ad_to_other_nucleus <- function(df) {
   df |>
-    dplyr::mutate(apost_dx = abs(axonal_coor_x - post_nucleus_x),
-                  apost_dy = abs(axonal_coor_y - post_nucleus_y),
-                  apost_dz = abs(axonal_coor_z - post_nucleus_z),
-                  apost_d = sqrt(apre_dx^2 + apre_dy^2 + apre_dz^2),
-                  dpre_dx = abs(dendritic_coor_x - pre_nucleus_x),
-                  dpre_dy = abs(dendritic_coor_y - pre_nucleus_y),
-                  dpre_dz = abs(dendritic_coor_z - pre_nucleus_z),
-                  dpre_d = sqrt(dpre_dx^2 + dpre_dy^2 + dpre_dz^2))
+    dplyr::mutate(apostnuc_dx = abs(axonal_coor_x - post_nucleus_x),
+                  apostnuc_dy = abs(axonal_coor_y - post_nucleus_y),
+                  apostnuc_dz = abs(axonal_coor_z - post_nucleus_z),
+                  apostnuc_d = sqrt(aprenuc_dx^2 + aprenuc_dy^2 + aprenuc_dz^2),
+                  dprenuc_dx = abs(dendritic_coor_x - pre_nucleus_x),
+                  dprenuc_dy = abs(dendritic_coor_y - pre_nucleus_y),
+                  dprenuc_dz = abs(dendritic_coor_z - pre_nucleus_z),
+                  dprenuc_d = sqrt(dprenuc_dx^2 + dprenuc_dy^2 + dprenuc_dz^2))
 }
 
 # pre_nucleus to post_nucleus
 pre_to_post_nucleus <- function(df) {
   df |>
-    dplyr::mutate(prepost_dx = abs(pre_nucleus_x - post_nucleus_x),
-                  prepost_dy = abs(pre_nucleus_y - post_nucleus_y),
-                  prepost_dz = abs(pre_nucleus_z - post_nucleus_z),
-                  prepost_d = sqrt(prepost_dx^2 + prepost_dy^2 + prepost_dz^2))
+    dplyr::mutate(prepost_nuc_dx = abs(pre_nucleus_x - post_nucleus_x),
+                  prepost_nuc_dy = abs(pre_nucleus_y - post_nucleus_y),
+                  prepost_nuc_dz = abs(pre_nucleus_z - post_nucleus_z),
+                  prepost_nuc_d = sqrt(prepost_nuc_dx^2 + prepost_nuc_dy^2 + prepost_nuc_dz^2))
 }
 
-# cosine similarity for each
-morph_feature_sim <- function(df) {
-  # gonna need to pivot longer here perhaps
+pre_to_post_rf <- function(df) {
+  df |>
+    dplyr::mutate(prepost_rf_dx = abs(pre_rf_x - post_rf_x),
+                  prepost_rf_dy = abs(pre_rf_y - post_rf_y),
+                  prepost_rf_d = sqrt(prepost_rf_dx^2 + prepost_rf_dy^2))
+}
+
+projection_region <- function(df) {
+  df |>
+    dplyr::mutate(brain_area = paste(pre_brain_area, post_brain_area, sep = "_"))
 }
 
 # abs(pre_morph_emb_0 - post_morph_emb_0) essentially
-morph_diff <- function(df) {
-  # gonna need to pivot longer here perhaps
-}
+# and the cosine similarity
+diff_and_sim <- function(df, prefix) {
+  pivoted <- df_joined |>
+    dplyr::select(pre_nucleus_id, post_nucleus_id,
+                  dplyr::contains(prefix)) |>
+    dplyr::distinct() |>
+    tidyr::pivot_longer(cols = dplyr::contains(prefix),
+                        names_to = c(".value", "num"),
+                        names_pattern = "(pre|post)_(.*)")
 
-# abs(pre_feature_weight_0 - post_feature_weight_0) essentially
-feature_diff <- function(df) {
-  # gonna need to pivot longer here perhaps
-}
+  sim <- pivoted |>
+    dplyr::group_by(pre_nucleus_id, post_nucleus_id) |>
+    dplyr::summarize("{prefix}_sim" := lsa::cosine(pre, post) |> as.vector())
 
+  pivoted |>
+    dplyr::mutate(diff = pre - post) |>  # probably not abs here
+    dplyr::select(-c(pre, post)) |>
+    tidyr::pivot_wider(names_from = num, names_prefix = "diff_",
+                       values_from = diff) |>
+    dplyr::left_join(sim, by = c("pre_nucleus_id", "post_nucleus_id"))
+}
