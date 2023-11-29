@@ -1,0 +1,14 @@
+---
+title: "Competition"
+author: "Prayag Gordy"
+format: html
+---
+
+```{r}
+raw_train <- readr::read_csv("neuron-synapse-prediction/train_data.csv")
+feature_weights <- readr::read_csv("neuron-synapse-prediction/feature_weights.csv")
+morph_embeddings <- readr::read_csv("neuron-synapse-prediction/morph_embeddings.csv")
+```
+
+
+
