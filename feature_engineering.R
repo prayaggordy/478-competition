@@ -42,6 +42,20 @@ count_metrics <- function(df) {
     dplyr::left_join(post_without_pct, by = "post_nucleus_id")
 }
 
+impute_me <- function(df) {  # make sure to set ID/pre/postid to role
+  df_full <- df |>
+    dplyr::filter(!is.na(pre_morph_emb_0))  # since all-or-none are missing, and only in pre
+  df_missing <- df |>
+    dplyr::filter(is.na(pre_morph_emb_0))
+
+  recipe(connected ~ ., data = df_full) |>
+    update_role(ID, pre_nucleus_id, post_nucleus_id, new_role = "ID") |>
+    step_dummy(all_nominal_predictors()) |>
+    step_impute_knn(all_numeric_predictors(), neighbors = 3) |>
+    prep(df_full) |>
+    bake(df_missing)
+}
+
 compress_fw_me <- function(df, prefix) {
   df_joined |>
     dplyr::select(pre_nucleus_id, post_nucleus_id,
@@ -55,7 +69,8 @@ compress_fw_me <- function(df, prefix) {
     dplyr::summarize("{prefix}_sim" := lsa::cosine(pre, post) |> as.vector(),
                      "pre_{prefix}_norm" := norm(pre, type = "2"),
                      "post_{prefix}_norm" := norm(post, type = "2"),
-                     "diff_{prefix}_norm" := norm(diff, type = "2"))
+                     "diff_{prefix}_norm" := norm(diff, type = "2")) |>
+    dplyr::ungroup()
 }
 
 do_feature_engineering <- function(df_raw, df_fw, df_me) {
@@ -65,78 +80,17 @@ do_feature_engineering <- function(df_raw, df_fw, df_me) {
     dplyr::left_join(projection_regions(df_raw), by = "ID") |>
     dplyr::left_join(count_metrics(df_raw), by = c("pre_nucleus_id", "post_nucleus_id"))
 
-  df_raw |>
-    dplyr::select(ID, pre_nucleus_id, post_nucleus_id) |>
+  first_features |>
     dplyr::left_join(df_fw |>
-                       dplyr::rename_with(.fn = \(x) paste("pre", x, sep = "_")),
-                     by = "pre_nucleus_id") |>
-    dplyr::left_join(df_me |>
                        dplyr::rename_with(.fn = \(x) paste("pre", x, sep = "_")),
                      by = "pre_nucleus_id") |>
     dplyr::left_join(df_fw |>
                        dplyr::rename_with(.fn = \(x) paste("post", x, sep = "_")),
                      by = "post_nucleus_id") |>
     dplyr::left_join(df_me |>
+                       dplyr::rename_with(.fn = \(x) paste("pre", x, sep = "_")),
+                     by = "pre_nucleus_id") |>
+    dplyr::left_join(df_me |>
                        dplyr::rename_with(.fn = \(x) paste("post", x, sep = "_")),
                      by = "post_nucleus_id")
-}
-
-
-
-
-
-
-
-
-
-
-
-# axonal to pre_nucleus and dendritic to post_nucleus distances
-ad_to_nucleus <- function(df) {
-  df |>
-    dplyr::mutate(apre_dx = abs(axonal_coor_x - pre_nucleus_x),
-                  apre_dy = abs(axonal_coor_y - pre_nucleus_y),
-                  apre_dz = abs(axonal_coor_z - pre_nucleus_z),
-                  apre_d = sqrt(apre_dx^2 + apre_dy^2 + apre_dz^2),
-                  dpost_dx = abs(dendritic_coor_x - post_nucleus_x),
-                  dpost_dy = abs(dendritic_coor_y - post_nucleus_y),
-                  dpost_dz = abs(dendritic_coor_z - post_nucleus_z),
-                  dpost_d = sqrt(dpost_dx^2 + dpost_dy^2 + dpost_dz^2)) |>
-    dplyr::select(-c(apre_dx, apre_dy, apre_dz, dpost_dx, dpost_dy, dpost_dz))
-}
-
-# axonal to post_nucleus and dendritic to pre_nucleus distances (maybe this distance metric is useful?)
-ad_to_other_nucleus <- function(df) {
-  df |>
-    dplyr::mutate(apostnuc_dx = abs(axonal_coor_x - post_nucleus_x),
-                  apostnuc_dy = abs(axonal_coor_y - post_nucleus_y),
-                  apostnuc_dz = abs(axonal_coor_z - post_nucleus_z),
-                  apostnuc_d = sqrt(apostnuc_dx^2 + apostnuc_dy^2 + apostnuc_dz^2),
-                  dprenuc_dx = abs(dendritic_coor_x - pre_nucleus_x),
-                  dprenuc_dy = abs(dendritic_coor_y - pre_nucleus_y),
-                  dprenuc_dz = abs(dendritic_coor_z - pre_nucleus_z),
-                  dprenuc_d = sqrt(dprenuc_dx^2 + dprenuc_dy^2 + dprenuc_dz^2)) |>
-    dplyr::select(-c(apostnuc_dx, apostnuc_dy, apostnuc_dz, dprenuc_dx, dprenuc_dy, dprenuc_dz))
-}
-
-# pre_nucleus to post_nucleus
-pre_to_post_nucleus <- function(df) {
-  df |>
-    dplyr::mutate(prepost_nuc_dx = abs(pre_nucleus_x - post_nucleus_x),
-                  prepost_nuc_dy = abs(pre_nucleus_y - post_nucleus_y),
-                  prepost_nuc_dz = abs(pre_nucleus_z - post_nucleus_z),
-                  prepost_nuc_d = sqrt(prepost_nuc_dx^2 + prepost_nuc_dy^2 + prepost_nuc_dz^2))
-}
-
-pre_to_post_rf <- function(df) {
-  df |>
-    dplyr::mutate(prepost_rf_dx = abs(pre_rf_x - post_rf_x),
-                  prepost_rf_dy = abs(pre_rf_y - post_rf_y),
-                  prepost_rf_d = sqrt(prepost_rf_dx^2 + prepost_rf_dy^2)) |>
-    dplyr::select(-c(prepost_rf_dx, prepost_rf_dy))
-}
-
-projection_region <- function(df) {
-  df |>
-    dplyr::mutate(brain_area = paste(pre_brain_area, post_brain_area, sep = "_"))
 }
