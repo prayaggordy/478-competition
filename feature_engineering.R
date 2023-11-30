@@ -1,12 +1,58 @@
-# the L1 distances between axonal and dendritic in x/y/z
-# mention that i know these distances are imperfect because of the footnote in the project description doc
-# say i don't know much about this neuron stuff but i'm assuming abs is the way to go
-L1_ad_xyz <- function(df) {
-  df |>
-    dplyr::mutate(ad_dx = abs(axonal_coor_x - dendritic_coor_x),
-                  ad_dy = abs(axonal_coor_y - dendritic_coor_y),
-                  ad_dz = abs(axonal_coor_z - dendritic_coor_z))
+e_dist <- function(x1, x2) {
+  sqrt(sum((x1 - x2)^2, na.rm = T))
 }
+
+fe_distances <- function(df) {
+  df |>
+    dplyr::select(ID, dplyr::ends_with(c("_x", "_y", "_z"))) |>
+    tidyr::pivot_longer(cols = -ID,
+                        names_to = c(".value", "coordinate"),
+                        names_pattern = "(.*)_(x|y|z)") |>
+    dplyr::group_by(ID) |>
+    dplyr::summarize(dist_axonal_postN = e_dist(axonal_coor, post_nucleus),
+                     dist_dendritic_preN = e_dist(dendritic_coor, pre_nucleus),
+                     dist_preN_postN = e_dist(pre_nucleus, post_nucleus),
+                     dist_preRF_postRF = e_dist(pre_rf, post_rf))
+}
+
+projection_regions <- function(df) {
+  df |>
+    dplyr::mutate(projection_region = paste(pre_brain_area, post_brain_area, sep = "_"),
+                  projection_region_change = pre_brain_area != post_brain_area) |>
+    dplyr::select(ID, projection_region, projection_region_change)
+}
+
+count_metrics <- function(df) {
+  within_pct <- df |>
+    dplyr::count(pre_nucleus_id, post_nucleus_id, name = "within_pct") |>
+    dplyr::mutate(within_pct = dplyr::percent_rank(within_pct))
+
+  pre_without_pct <- df |>
+    dplyr::group_by(pre_nucleus_id) |>
+    dplyr::summarize(pre_within_pct = dplyr::n_distinct(post_nucleus_id)) |>
+    dplyr::mutate(pre_within_pct = dplyr::percent_rank(pre_within_pct))
+
+  post_without_pct <- df |>
+    dplyr::group_by(post_nucleus_id) |>
+    dplyr::summarize(post_without_pct = dplyr::n_distinct(pre_nucleus_id)) |>
+    dplyr::mutate(post_without_pct = dplyr::percent_rank(post_without_pct))
+
+  within_pct |>
+    dplyr::left_join(pre_without_pct, by = "pre_nucleus_id") |>
+    dplyr::left_join(post_without_pct, by = "post_nucleus_id")
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 # axonal to pre_nucleus and dendritic to post_nucleus distances
 ad_to_nucleus <- function(df) {
@@ -18,7 +64,8 @@ ad_to_nucleus <- function(df) {
                   dpost_dx = abs(dendritic_coor_x - post_nucleus_x),
                   dpost_dy = abs(dendritic_coor_y - post_nucleus_y),
                   dpost_dz = abs(dendritic_coor_z - post_nucleus_z),
-                  dpost_d = sqrt(dpost_dx^2 + dpost_dy^2 + dpost_dz^2))
+                  dpost_d = sqrt(dpost_dx^2 + dpost_dy^2 + dpost_dz^2)) |>
+    dplyr::select(-c(apre_dx, apre_dy, apre_dz, dpost_dx, dpost_dy, dpost_dz))
 }
 
 # axonal to post_nucleus and dendritic to pre_nucleus distances (maybe this distance metric is useful?)
@@ -31,7 +78,8 @@ ad_to_other_nucleus <- function(df) {
                   dprenuc_dx = abs(dendritic_coor_x - pre_nucleus_x),
                   dprenuc_dy = abs(dendritic_coor_y - pre_nucleus_y),
                   dprenuc_dz = abs(dendritic_coor_z - pre_nucleus_z),
-                  dprenuc_d = sqrt(dprenuc_dx^2 + dprenuc_dy^2 + dprenuc_dz^2))
+                  dprenuc_d = sqrt(dprenuc_dx^2 + dprenuc_dy^2 + dprenuc_dz^2)) |>
+    dplyr::select(-c(apostnuc_dx, apostnuc_dy, apostnuc_dz, dprenuc_dx, dprenuc_dy, dprenuc_dz))
 }
 
 # pre_nucleus to post_nucleus
@@ -47,7 +95,8 @@ pre_to_post_rf <- function(df) {
   df |>
     dplyr::mutate(prepost_rf_dx = abs(pre_rf_x - post_rf_x),
                   prepost_rf_dy = abs(pre_rf_y - post_rf_y),
-                  prepost_rf_d = sqrt(prepost_rf_dx^2 + prepost_rf_dy^2))
+                  prepost_rf_d = sqrt(prepost_rf_dx^2 + prepost_rf_dy^2)) |>
+    dplyr::select(-c(prepost_rf_dx, prepost_rf_dy))
 }
 
 projection_region <- function(df) {
