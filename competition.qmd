@@ -43,6 +43,8 @@ tree_rec <- recipe(connected ~ ., data = trees_train_fe) |>
 	themis::step_upsample(connected, over_ratio = 1)
 ```
 
+## Logistic
+
 ```{r}
 simple_logistic <- glm(connected ~ ., data = tree_rec |> prep() |> juice(), family = "binomial")
 ```
@@ -78,8 +80,87 @@ tibble::tibble(ID = DF_TEST$ID,
 	readr::write_csv("simple_logistic_preds.csv")
 ```
 
+## Back to RF
+
+```{r}
+spec <- rand_forest(mode = "classification", engine = "ranger",
+										mtry = tune(), trees = tune(), min_n = tune())
+metric <- metric_set(bal_accuracy)
+```
+
+```{r}
+set.seed(123)
+rs <- vfold_cv(trees_train_fe, v = 3, strata = connected)
+```
+
+```{r}
+wf <- workflow() |>
+	add_recipe(tree_rec) |>
+	add_model(spec)
+```
+
+```{r}
+registerDoMC(cores = 7)
+
+res_grid <- wf |> 
+	tune_grid(resamples = rs, 
+						metrics = metric,
+						grid = tibble::tribble(
+							~ "mtry", ~ "trees", ~ "min_n",
+							3, 4000, 15000,
+							4, 3500, 12000,
+							4, 2500, 18000,
+							5, 3000, 16000,
+							5, 2200, 20000,
+							6, 3200, 22000
+						),
+						control = control_grid(verbose = T))
+
+registerDoSEQ()
+
+save(res_grid, file = paste0("tune_grid_rf_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+```
+
+```{r}
+final_wf <- workflow() |>
+  add_recipe(tree_rec) |>
+  add_model(finalize_model(spec, select_best(res_grid)))
+
+final_res <- final_wf |>
+  fit(data = trees_train_fe)
+
+save(final_res, file = paste0("tune_grid_rf_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+```
+
+```{r}
+final_res |>
+  extract_fit_engine() |>
+	predict(trees_test_fe) |>
+	purrr::pluck("predictions") |>
+	tibble::as_tibble() |>
+	dplyr::mutate(estimate = ifelse(`TRUE` > `FALSE`, "TRUE", "FALSE") |> 
+									factor(levels = c("TRUE", "FALSE"))) |> 
+	dplyr::select(estimate) |> 
+	dplyr::bind_cols(trees_test_fe |> 
+									 	dplyr::select(connected)) |>
+	bal_accuracy(truth = connected, estimate = estimate)
+```
 
 
 
+```{r}
+registerDoMC(cores = 7)
+
+res <- wf |> 
+	tune_bayes(resamples = rs, 
+						 metrics = metric,
+						 initial = res_grid,
+						 param_info = spec |> extract_parameter_set_dials() |> finalize(trees_train_fe),
+						 control = control_bayes(verbose = TRUE))
+
+registerDoSEQ()
+
+save(res, file = paste0("tune_bayes_rf_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+```
 
 
