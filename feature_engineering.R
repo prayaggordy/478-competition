@@ -18,7 +18,7 @@ ad_to_nucleus <- function(df) {
                   dpost_dx = abs(dendritic_coor_x - post_nucleus_x),
                   dpost_dy = abs(dendritic_coor_y - post_nucleus_y),
                   dpost_dz = abs(dendritic_coor_z - post_nucleus_z),
-                  dpost_d = sqrt(dpre_dx^2 + dpre_dy^2 + dpre_dz^2))
+                  dpost_d = sqrt(dpost_dx^2 + dpost_dy^2 + dpost_dz^2))
 }
 
 # axonal to post_nucleus and dendritic to pre_nucleus distances (maybe this distance metric is useful?)
@@ -27,7 +27,7 @@ ad_to_other_nucleus <- function(df) {
     dplyr::mutate(apostnuc_dx = abs(axonal_coor_x - post_nucleus_x),
                   apostnuc_dy = abs(axonal_coor_y - post_nucleus_y),
                   apostnuc_dz = abs(axonal_coor_z - post_nucleus_z),
-                  apostnuc_d = sqrt(aprenuc_dx^2 + aprenuc_dy^2 + aprenuc_dz^2),
+                  apostnuc_d = sqrt(apostnuc_dx^2 + apostnuc_dy^2 + apostnuc_dz^2),
                   dprenuc_dx = abs(dendritic_coor_x - pre_nucleus_x),
                   dprenuc_dy = abs(dendritic_coor_y - pre_nucleus_y),
                   dprenuc_dz = abs(dendritic_coor_z - pre_nucleus_z),
@@ -68,7 +68,9 @@ diff_and_sim <- function(df, prefix) {
 
   sim <- pivoted |>
     dplyr::group_by(pre_nucleus_id, post_nucleus_id) |>
-    dplyr::summarize("{prefix}_sim" := lsa::cosine(pre, post) |> as.vector())
+    dplyr::summarize("{prefix}_sim" := lsa::cosine(pre, post) |> as.vector(),
+                     "pre_{prefix}_compactness" := norm(pre, type = "2"),
+                     "post_{prefix}_compactness" := norm(post, type = "2"))
 
   pivoted |>
     dplyr::mutate(diff = pre - post) |>  # probably not abs here

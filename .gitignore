@@ -3,3 +3,4 @@
 .RData
 .Ruserdata
 Neuron-synapse-prediction/*
+*.Rds

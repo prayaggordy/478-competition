@@ -7,6 +7,7 @@ format: html
 To run the code, download `neuron-synapse-prediction` folder from Kaggle and put it at the project level.
 
 ```{r}
+#| message: false
 raw_train <- readr::read_csv("neuron-synapse-prediction/train_data.csv")
 feature_weights <- readr::read_csv("neuron-synapse-prediction/feature_weights.csv")
 morph_embeddings <- readr::read_csv("neuron-synapse-prediction/morph_embeddings.csv")
@@ -45,3 +46,75 @@ df_joined |>
 ```
 
 Missing about 25% of pre morph embeddings.
+
+## Base model using no FW or ME
+
+```{r}
+df_train <- df_joined |>
+	dplyr::select(ID:connected) |>
+	L1_ad_xyz() |>
+	ad_to_nucleus() |>
+	ad_to_other_nucleus() |>
+	pre_to_post_nucleus() |>
+	pre_to_post_rf() |>
+	projection_region() |>
+	dplyr::mutate(connected = forcats::as_factor(connected) |>
+									forcats::fct_relevel(c("TRUE", "FALSE")))
+```
+
+```{r}
+#| message: false
+library(tidymodels)
+library(doMC)
+```
+
+```{r}
+set.seed(123)
+trees_split <- initial_split(df_train, strata = connected)
+trees_train <- training(trees_split)
+trees_test <- testing(trees_split)
+```
+
+```{r}
+tree_rec <- recipe(connected ~ ., data = trees_train) |>
+	update_role(ID, pre_nucleus_id, post_nucleus_id, new_role = "ID") |>
+	themis::step_upsample(connected, over_ratio = 0.25)# |>
+	# themis::step_downsample(connected, under_ratio = 1)
+
+tree_rec |> prep() |> juice() |> dplyr::pull(connected) |> table()
+```
+
+```{r}
+tune_spec <- rand_forest(
+	mtry = tune(),
+	trees = 1000
+) %>%
+	set_mode("classification") %>%
+	set_engine("ranger")
+```
+
+```{r}
+tune_wf <- workflow() %>%
+  add_recipe(tree_rec) %>%
+  add_model(tune_spec)
+```
+
+```{r}
+trees_folds <- vfold_cv(trees_train, v = 3)
+```
+
+```{r}
+registerDoMC(cores = 4)
+
+tune_res <- tune_grid(
+  tune_wf, 
+  resamples = trees_folds, 
+  grid = 20, 
+  metrics = metric_set(bal_accuracy)
+)
+
+registerDoSEQ()
+
+save(tune_res, file = "tune_res_no_fw_me.Rds")
+```
+
