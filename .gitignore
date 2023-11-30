@@ -4,3 +4,4 @@
 .Ruserdata
 Neuron-synapse-prediction/*
 *.Rds
+*.csv

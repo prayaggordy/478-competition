@@ -47,7 +47,8 @@ impute_me <- function(df, fe_type, fit_fn = "impute_fit.Rds") {
     big_fit <- lm(formula(paste0("cbind(",
                                  paste("pre_morph_emb", 0:31, sep = "_", collapse = ", "),
                                  ") ~ .")),
-                  data = df)
+                  data = df |>
+                    dplyr::select(-dplyr::all_of(c("ID", "pre_nucleus_id", "post_nucleus_id", "connected"))))
     save(big_fit, file = fit_fn)
   } else {
     load(fit_fn)
