@@ -42,7 +42,44 @@ count_metrics <- function(df) {
     dplyr::left_join(post_without_pct, by = "post_nucleus_id")
 }
 
+compress_fw_me <- function(df, prefix) {
+  df_joined |>
+    dplyr::select(pre_nucleus_id, post_nucleus_id,
+                  dplyr::contains(prefix)) |>
+    dplyr::distinct() |>
+    tidyr::pivot_longer(cols = dplyr::contains(prefix),
+                        names_to = c(".value", "num"),
+                        names_pattern = "(pre|post)_(.*)") |>
+    dplyr::mutate(diff = pre - post) |>
+    dplyr::group_by(pre_nucleus_id, post_nucleus_id) |>
+    dplyr::summarize("{prefix}_sim" := lsa::cosine(pre, post) |> as.vector(),
+                     "pre_{prefix}_norm" := norm(pre, type = "2"),
+                     "post_{prefix}_norm" := norm(post, type = "2"),
+                     "diff_{prefix}_norm" := norm(diff, type = "2"))
+}
 
+do_feature_engineering <- function(df_raw, df_fw, df_me) {
+  first_features <- df_raw |>
+    dplyr::relocate(c(pre_nucleus_id, post_nucleus_id), .after = ID) |>
+    dplyr::left_join(fe_distances(df_raw), by = "ID") |>
+    dplyr::left_join(projection_regions(df_raw), by = "ID") |>
+    dplyr::left_join(count_metrics(df_raw), by = c("pre_nucleus_id", "post_nucleus_id"))
+
+  df_raw |>
+    dplyr::select(ID, pre_nucleus_id, post_nucleus_id) |>
+    dplyr::left_join(df_fw |>
+                       dplyr::rename_with(.fn = \(x) paste("pre", x, sep = "_")),
+                     by = "pre_nucleus_id") |>
+    dplyr::left_join(df_me |>
+                       dplyr::rename_with(.fn = \(x) paste("pre", x, sep = "_")),
+                     by = "pre_nucleus_id") |>
+    dplyr::left_join(df_fw |>
+                       dplyr::rename_with(.fn = \(x) paste("post", x, sep = "_")),
+                     by = "post_nucleus_id") |>
+    dplyr::left_join(df_me |>
+                       dplyr::rename_with(.fn = \(x) paste("post", x, sep = "_")),
+                     by = "post_nucleus_id")
+}
 
 
 
@@ -102,29 +139,4 @@ pre_to_post_rf <- function(df) {
 projection_region <- function(df) {
   df |>
     dplyr::mutate(brain_area = paste(pre_brain_area, post_brain_area, sep = "_"))
-}
-
-# abs(pre_morph_emb_0 - post_morph_emb_0) essentially
-# and the cosine similarity
-diff_and_sim <- function(df, prefix) {
-  pivoted <- df_joined |>
-    dplyr::select(pre_nucleus_id, post_nucleus_id,
-                  dplyr::contains(prefix)) |>
-    dplyr::distinct() |>
-    tidyr::pivot_longer(cols = dplyr::contains(prefix),
-                        names_to = c(".value", "num"),
-                        names_pattern = "(pre|post)_(.*)")
-
-  sim <- pivoted |>
-    dplyr::group_by(pre_nucleus_id, post_nucleus_id) |>
-    dplyr::summarize("{prefix}_sim" := lsa::cosine(pre, post) |> as.vector(),
-                     "pre_{prefix}_compactness" := norm(pre, type = "2"),
-                     "post_{prefix}_compactness" := norm(post, type = "2"))
-
-  pivoted |>
-    dplyr::mutate(diff = pre - post) |>  # probably not abs here
-    dplyr::select(-c(pre, post)) |>
-    tidyr::pivot_wider(names_from = num, names_prefix = "diff_",
-                       values_from = diff) |>
-    dplyr::left_join(sim, by = c("pre_nucleus_id", "post_nucleus_id"))
 }
