@@ -42,22 +42,34 @@ count_metrics <- function(df) {
     dplyr::left_join(post_without_pct, by = "post_nucleus_id")
 }
 
-impute_me <- function(df) {  # make sure to set ID/pre/postid to role
-  df_full <- df |>
-    dplyr::filter(!is.na(pre_morph_emb_0))  # since all-or-none are missing, and only in pre
-  df_missing <- df |>
-    dplyr::filter(is.na(pre_morph_emb_0))
+impute_me <- function(df, fe_type, fit_fn = "impute_fit.Rds") {
+  if (fe_type == "training") {
+    big_fit <- lm(formula(paste0("cbind(",
+                                 paste("pre_morph_emb", 0:31, sep = "_", collapse = ", "),
+                                 ") ~ .")),
+                  data = df)
+    save(big_fit, file = fit_fn)
+  } else {
+    load(fit_fn)
+  }
 
-  recipe(connected ~ ., data = df_full) |>
-    update_role(ID, pre_nucleus_id, post_nucleus_id, new_role = "ID") |>
-    step_dummy(all_nominal_predictors()) |>
-    step_impute_knn(all_numeric_predictors(), neighbors = 3) |>
-    prep(df_full) |>
-    bake(df_missing)
+  preds <- predict(big_fit, df) |>
+    tibble::as_tibble() |>
+    dplyr::mutate(ID = df$ID) |>
+    tidyr::pivot_longer(cols = -ID,
+                        values_to = "pred")
+
+  df |>
+    dplyr::select(ID, dplyr::starts_with("pre_morph_emb")) |>
+    tidyr::pivot_longer(cols = -ID) |>
+    dplyr::inner_join(preds, by = c("ID", "name")) |>
+    dplyr::mutate(v = dplyr::coalesce(value, pred)) |>
+    dplyr::select(ID, name, v) |>
+    tidyr::pivot_wider(names_from = name, values_from = v)
 }
 
 compress_fw_me <- function(df, prefix) {
-  df_joined |>
+  df |>
     dplyr::select(pre_nucleus_id, post_nucleus_id,
                   dplyr::contains(prefix)) |>
     dplyr::distinct() |>
@@ -73,24 +85,41 @@ compress_fw_me <- function(df, prefix) {
     dplyr::ungroup()
 }
 
-do_feature_engineering <- function(df_raw, df_fw, df_me) {
+do_feature_engineering <- function(df_raw, fe_type,
+                                   df_fw = feature_weights,
+                                   df_me = morph_embeddings) {
   first_features <- df_raw |>
     dplyr::relocate(c(pre_nucleus_id, post_nucleus_id), .after = ID) |>
     dplyr::left_join(fe_distances(df_raw), by = "ID") |>
     dplyr::left_join(projection_regions(df_raw), by = "ID") |>
-    dplyr::left_join(count_metrics(df_raw), by = c("pre_nucleus_id", "post_nucleus_id"))
+    dplyr::left_join(count_metrics(df_raw), by = c("pre_nucleus_id", "post_nucleus_id"))  # training/testing split will happen first
 
-  first_features |>
-    dplyr::left_join(df_fw |>
+  morph_imputed <- first_features |>
+    dplyr::left_join(df_me |>
                        dplyr::rename_with(.fn = \(x) paste("pre", x, sep = "_")),
                      by = "pre_nucleus_id") |>
-    dplyr::left_join(df_fw |>
+    impute_me(fe_type = fe_type)
+
+  df_big <- first_features |>
+    dplyr::left_join(morph_imputed, by = "ID") |>
+    dplyr::left_join(df_me |>
                        dplyr::rename_with(.fn = \(x) paste("post", x, sep = "_")),
                      by = "post_nucleus_id") |>
-    dplyr::left_join(df_me |>
+    dplyr::left_join(df_fw |>
                        dplyr::rename_with(.fn = \(x) paste("pre", x, sep = "_")),
                      by = "pre_nucleus_id") |>
-    dplyr::left_join(df_me |>
+    dplyr::left_join(df_fw |>
                        dplyr::rename_with(.fn = \(x) paste("post", x, sep = "_")),
                      by = "post_nucleus_id")
+
+  compressed <- df_big |>
+    compress_fw_me("morph_emb") |>
+    dplyr::left_join(
+      df_big |>
+        compress_fw_me("feature_weight"),
+      by = c("pre_nucleus_id", "post_nucleus_id")
+    )
+
+  first_features |>
+    dplyr::left_join(compressed, by = c("pre_nucleus_id", "post_nucleus_id"))
 }
