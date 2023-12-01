@@ -295,3 +295,22 @@ registerDoSEQ()
 save(res_bayes_bt, file = paste0("tune_bayes_bt_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
+```{r}
+final_bt_wf_bayes <- workflow() |>
+  add_recipe(bt_rec) |>
+  add_model(finalize_model(bt_spec, select_best(res_bayes_bt)))
+
+final_bt_res_bayes <- final_bt_wf_bayes |>
+  fit(data = trees_train_fe)
+
+save(final_bt_res, file = paste0("tune_bayes_bt_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+```
+
+```{r}
+augment(final_bt_res_bayes, new_data = DF_TEST) |>
+	dplyr::select(ID, .pred_class) |>
+	dplyr::mutate(connected = as.character(.pred_class) |> stringr::str_to_title()) |>
+	dplyr::select(ID, connected) |>
+	readr::write_csv(paste0("PRED_tune_bayes_bt_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
+```
+
