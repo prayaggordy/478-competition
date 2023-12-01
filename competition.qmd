@@ -23,6 +23,11 @@ source("feature_engineering.R")
 ```
 
 ```{r}
+DF_TEST <- readr::read_csv("neuron-synapse-prediction/leaderboard_data.csv") |>
+	do_feature_engineering(fe_type = "testing")
+```
+
+```{r}
 set.seed(123)
 trees_split <- initial_split(raw_train, strata = connected)
 trees_train <- training(trees_split)
@@ -46,38 +51,52 @@ tree_rec <- recipe(connected ~ ., data = trees_train_fe) |>
 ## Logistic
 
 ```{r}
-simple_logistic <- glm(connected ~ ., data = tree_rec |> prep() |> juice(), family = "binomial")
+logistic_rec <- tree_rec |>
+	step_dummy(all_nominal_predictors()) |>
+	step_mutate(projection_region_change = as.numeric(projection_region_change))
+
+logistic_spec <- logistic_reg(penalty = tune(), mixture = ) |>
+	set_mode("classification") |>
+	set_engine("glmnet")
 ```
 
 ```{r}
-test_pred <- predict(simple_logistic, trees_test_fe, type = "response") |>
-	magrittr::is_less_than(0.5) |>
-	factor()
+logistic_tune_wf <- workflow() |>
+	add_recipe(logistic_rec) |>
+	add_model(logistic_spec)
+
+metric <- metric_set(bal_accuracy)
 ```
 
 ```{r}
-bal_accuracy(data.frame(x = factor(trees_test_fe$connected == "TRUE"),
-												y = test_pred),
-						 truth = x,
-						 estimate = y)
+registerDoMC(cores = 7)
+
+logistic_grid <- logistic_tune_wf |> 
+	tune_grid(resamples = rs, 
+						metrics = metric,
+						grid = 30,
+						control = control_grid(verbose = T))
+
+registerDoSEQ()
+
+save(logistic_grid, file = paste0("tune_grid_logistic_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
-DF_TEST <- readr::read_csv("neuron-synapse-prediction/leaderboard_data.csv") |>
-	do_feature_engineering(fe_type = "testing")
+final_logistic_wf <- workflow() |>
+  add_recipe(logistic_rec) |>
+  add_model(finalize_model(logistic_spec, select_best(logistic_grid)))
+
+final_logistic_res <- final_logistic_wf |>
+  fit(data = trees_train_fe)
+
+save(final_logistic_res, file = paste0("tune_grid_logistic_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
-TEST_PREDICTIONS <- predict(simple_logistic, DF_TEST, type = "response") |>
-	magrittr::is_less_than(0.5) |>
-	as.character() |>
-	stringr::str_to_title()
-```
-
-```{r}
-tibble::tibble(ID = DF_TEST$ID,
-							 connected = TEST_PREDICTIONS) |>
-	readr::write_csv("simple_logistic_preds.csv")
+final_logistic_res |>
+	augment(trees_test_fe) |>
+	bal_accuracy(connected, .pred_class)
 ```
 
 ## Back to RF
