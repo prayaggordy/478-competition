@@ -135,6 +135,18 @@ save(final_res, file = paste0("tune_grid_rf_final_", format(Sys.time(), "%H_%M_%
 ```{r}
 final_res |>
   extract_fit_engine() |>
+	predict(DF_TEST) |>
+	purrr::pluck("predictions") |>
+	tibble::as_tibble() |>
+	dplyr::mutate(estimate = ifelse(`TRUE` > `FALSE`, "True", "False")) |>
+	dplyr::bind_cols(DF_TEST |> dplyr::select(ID)) |>
+	dplyr::select(ID, connected = estimate) |>
+	readr::write_csv(paste0("PRED_tune_grid_rf_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
+```
+
+```{r}
+final_res |>
+  extract_fit_engine() |>
 	predict(trees_test_fe) |>
 	purrr::pluck("predictions") |>
 	tibble::as_tibble() |>
@@ -149,13 +161,19 @@ final_res |>
 
 
 ```{r}
+load("tune_grid_rf_15_15_53.Rds")
+```
+
+```{r}
 registerDoMC(cores = 7)
 
 res <- wf |> 
 	tune_bayes(resamples = rs, 
 						 metrics = metric,
 						 initial = res_grid,
-						 param_info = spec |> extract_parameter_set_dials() |> finalize(trees_train_fe),
+						 param_info = parameters(mtry(range = c(2, 10)),
+						 												trees(range = c(2000, 6000)),
+						 												min_n(range = c(15000, 40000))),
 						 control = control_bayes(verbose = TRUE))
 
 registerDoSEQ()
@@ -163,4 +181,117 @@ registerDoSEQ()
 save(res, file = paste0("tune_bayes_rf_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
+```{r}
+final_bayes_wf <- workflow() |>
+  add_recipe(tree_rec) |>
+  add_model(finalize_model(spec, select_best(res)))
+
+final_bayes_res <- final_bayes_wf |>
+  fit(data = trees_train_fe)
+
+save(final_bayes_res, file = paste0("tune_bayes_rf_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+```
+
+```{r}
+final_bayes_res |>
+  extract_fit_engine() |>
+	predict(DF_TEST) |>
+	purrr::pluck("predictions") |>
+	tibble::as_tibble() |>
+	dplyr::mutate(estimate = ifelse(`TRUE` > `FALSE`, "True", "False")) |>
+	dplyr::bind_cols(DF_TEST |> dplyr::select(ID)) |>
+	dplyr::select(ID, connected = estimate) |>
+	readr::write_csv(paste0("PRED_tune_bayes_rf_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
+```
+
+## Boosting
+
+```{r}
+bt_rec <- recipe(connected ~ ., data = trees_train_fe) |>
+	update_role(ID, pre_nucleus_id, post_nucleus_id, new_role = "ID") |>
+	step_dummy(all_nominal_predictors()) |>
+	step_mutate(projection_region_change = as.numeric(projection_region_change)) |>
+	themis::step_upsample(connected, over_ratio = 1)
+
+bt_spec <- boost_tree(trees = tune(), tree_depth = tune(),
+											learn_rate = tune(), mtry = tune(), 
+											min_n = tune(), loss_reduction = tune(),
+											sample_size = tune()) |>
+	set_mode("classification") |>
+	set_engine("xgboost")
+
+bt_grid <- grid_latin_hypercube(
+	trees(),
+  tree_depth(),
+  min_n(),
+  loss_reduction(),
+  sample_size = sample_prop(),
+  finalize(mtry(), trees_train_fe),
+  learn_rate(),
+  size = 30
+)
+
+metric <- metric_set(bal_accuracy)
+```
+
+```{r}
+set.seed(123)
+rs <- vfold_cv(trees_train_fe, v = 3, strata = connected)
+```
+
+```{r}
+bt_wf <- workflow() |>
+	add_recipe(bt_rec) |>
+	add_model(bt_spec)
+```
+
+```{r}
+registerDoMC(cores = 7)
+
+res_bt <- bt_wf |> 
+	tune_grid(resamples = rs, 
+						metrics = metric,
+						grid = bt_grid,
+						control = control_grid(verbose = T))
+
+registerDoSEQ()
+
+save(res_bt, file = paste0("tune_grid_bt_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+```
+
+```{r}
+final_bt_wf <- workflow() |>
+  add_recipe(bt_rec) |>
+  add_model(finalize_model(bt_spec, select_best(res_bt)))
+
+final_bt_res <- final_bt_wf |>
+  fit(data = trees_train_fe)
+
+save(final_bt_res, file = paste0("tune_grid_bt_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+```
+
+```{r}
+augment(final_bt_res, new_data = DF_TEST) |>
+	dplyr::select(ID, .pred_class) |>
+	dplyr::mutate(connected = as.character(.pred_class) |> stringr::str_to_title()) |>
+	dplyr::select(ID, connected) |>
+	readr::write_csv(paste0("PRED_tune_grid_bt_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
+```
+
+```{r}
+registerDoMC(cores = 7)
+
+res_bayes_bt <- bt_wf |> 
+	tune_bayes(resamples = rs, 
+						 metrics = metric,
+						 initial = res_bt,
+						 param_info = parameters(mtry(range = c(3, 44)), trees(range = c(1000, 4000)), 
+						 												min_n(range = c(20, 60)), sample_prop(range = c(0.1, 1)),
+						 												tree_depth(), learn_rate(), loss_reduction()),
+						 control = control_bayes(verbose = TRUE))
+
+registerDoSEQ()
+
+save(res_bayes_bt, file = paste0("tune_bayes_bt_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+```
 
