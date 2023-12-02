@@ -23,11 +23,6 @@ source("feature_engineering.R")
 ```
 
 ```{r}
-DF_TEST <- readr::read_csv("neuron-synapse-prediction/leaderboard_data.csv") |>
-	do_feature_engineering(fe_type = "testing")
-```
-
-```{r}
 set.seed(123)
 trees_split <- initial_split(raw_train, strata = connected)
 trees_train <- training(trees_split)
@@ -43,9 +38,20 @@ trees_test_fe <- do_feature_engineering(trees_test, fe_type = "testing")
 ```
 
 ```{r}
+#| message: false
+DF_TEST <- readr::read_csv("neuron-synapse-prediction/leaderboard_data.csv") |>
+	do_feature_engineering(fe_type = "testing")
+```
+
+```{r}
 tree_rec <- recipe(connected ~ ., data = trees_train_fe) |>
 	update_role(ID, pre_nucleus_id, post_nucleus_id, new_role = "ID") |>
 	themis::step_upsample(connected, over_ratio = 1)
+```
+
+```{r}
+set.seed(123)
+rs <- vfold_cv(trees_train_fe, v = 3, strata = connected)
 ```
 
 ## Logistic
@@ -105,11 +111,6 @@ final_logistic_res |>
 spec <- rand_forest(mode = "classification", engine = "ranger",
 										mtry = tune(), trees = tune(), min_n = tune())
 metric <- metric_set(bal_accuracy)
-```
-
-```{r}
-set.seed(123)
-rs <- vfold_cv(trees_train_fe, v = 3, strata = connected)
 ```
 
 ```{r}
@@ -331,5 +332,90 @@ augment(final_bt_res_bayes, new_data = DF_TEST) |>
 	dplyr::mutate(connected = as.character(.pred_class) |> stringr::str_to_title()) |>
 	dplyr::select(ID, connected) |>
 	readr::write_csv(paste0("PRED_tune_bayes_bt_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
+```
+
+## Stacking
+
+```{r}
+load("tune_bayes_bt_final_15_39_55.Rds")
+final_bayes_bt <- final_bt_res; rm(final_bt_res)
+load("tune_bayes_rf_final_22_58_43.Rds")
+final_bayes_rf <- final_bayes_res; rm(final_bayes_res)
+load("tune_grid_bt_final_15_39_29.Rds")
+final_grid_bt <- final_bt_res; rm(final_bt_res)
+load("tune_grid_rf_final_16_36_43.Rds")
+final_grid_rf <- final_res; rm(final_res)
+load("tune_grid_logistic_final_17_24_26.Rds")
+final_grid_logistic <- final_logistic_res; rm(final_logistic_res)
+```
+
+```{r}
+final_preds <- 
+	augment(final_bayes_bt, trees_test_fe) |> dplyr::select(ID, connected, pred_final_bayes_bt = .pred_class) |>
+	dplyr::left_join(
+		augment(final_bayes_rf, trees_test_fe) |> dplyr::select(ID, pred_final_bayes_rf = .pred_class),
+		by = "ID"
+	) |>
+	dplyr::left_join(
+		augment(final_grid_bt, trees_test_fe) |> dplyr::select(ID, pred_final_grid_bt = .pred_class),
+		by = "ID"
+	) |>
+	dplyr::left_join(
+		augment(final_grid_rf, trees_test_fe) |> dplyr::select(ID, pred_final_grid_rf = .pred_class),
+		by = "ID"
+	) |>
+	dplyr::left_join(
+		augment(final_grid_logistic, trees_test_fe) |> dplyr::select(ID, pred_final_grid_logistic = .pred_class),
+		by = "ID"
+	)
+```
+
+```{r}
+final_preds |>
+	dplyr::mutate(dplyr::across(dplyr::starts_with("pred"), as.logical, .names = "{.col}_lg"),
+								total_true = pred_final_bayes_bt_lg + pred_final_bayes_rf_lg + pred_final_grid_bt_lg + pred_final_grid_rf_lg + pred_final_grid_logistic_lg,
+								mode_true = (total_true >= 3) |>
+									forcats::as_factor() |>
+									forcats::fct_relevel(c("TRUE", "FALSE"))) |>
+	dplyr::select(ID, connected, pred_final_bayes_bt:pred_final_grid_logistic, mode_true) |>
+	tidyr::pivot_longer(cols = c(pred_final_bayes_bt:pred_final_grid_logistic, mode_true)) |>
+	dplyr::group_by(name) |>
+	tidyr::nest() |>
+	dplyr::mutate(estimate = purrr::map(data, \(d) bal_accuracy(d, connected, value))) |>
+	dplyr::select(-data) |>
+	tidyr::unnest(estimate)
+```
+
+```{r}
+final_test_preds <- 
+	augment(final_bayes_bt, DF_TEST) |> dplyr::select(ID, pred_final_bayes_bt = .pred_class) |>
+	dplyr::left_join(
+		augment(final_bayes_rf, DF_TEST) |> dplyr::select(ID, pred_final_bayes_rf = .pred_class),
+		by = "ID"
+	) |>
+	dplyr::left_join(
+		augment(final_grid_bt, DF_TEST) |> dplyr::select(ID, pred_final_grid_bt = .pred_class),
+		by = "ID"
+	) |>
+	dplyr::left_join(
+		augment(final_grid_rf, DF_TEST) |> dplyr::select(ID, pred_final_grid_rf = .pred_class),
+		by = "ID"
+	) |>
+	dplyr::left_join(
+		augment(final_grid_logistic, DF_TEST) |> dplyr::select(ID, pred_final_grid_logistic = .pred_class),
+		by = "ID"
+	)
+```
+
+```{r}
+final_test_preds |>
+	dplyr::mutate(dplyr::across(dplyr::starts_with("pred"), as.logical, .names = "{.col}_lg"),
+								total_true = pred_final_bayes_bt_lg + pred_final_bayes_rf_lg + pred_final_grid_bt_lg + pred_final_grid_rf_lg + pred_final_grid_logistic_lg,
+								mode_true = (total_true >= 3) |>
+									forcats::as_factor() |>
+									forcats::fct_relevel(c("TRUE", "FALSE"))) |>
+	dplyr::mutate(connected = as.character(mode_true) |> stringr::str_to_title()) |>
+	dplyr::select(ID, connected) |>
+	readr::write_csv(paste0("PRED_stack", format(Sys.time(), "%H_%M_%S"), ".csv"))
 ```
 
