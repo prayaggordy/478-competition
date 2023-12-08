@@ -5,3 +5,6 @@
 Neuron-synapse-prediction/*
 *.Rds
 *.csv
+*.pdf
+*.tex
+_extensions/
