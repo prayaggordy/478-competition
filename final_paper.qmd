@@ -3,6 +3,34 @@ title: "Predicting when two neurons will form a synapse"
 author: "Prayag Gordy"
 format:
   ieee-pdf: default
-bibliography: references/references.bib
+bibliography: references.bib
+nocite: |
+  @*
 ---
+
+# Introduction
+
+[T]{.IEEEPARstart}[his]{} is my project.
+
+# Methods
+
+Here are the methods.
+
+
+# Results
+
+Some results.
+
+
+# Discussion
+
+Discuss.
+
+
+# Acknowledgements {-}
+
+I did all the work.
+
+
+# References {-}
 
