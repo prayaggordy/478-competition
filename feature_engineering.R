@@ -42,7 +42,7 @@ count_metrics <- function(df) {
     dplyr::left_join(post_without_pct, by = "post_nucleus_id")
 }
 
-impute_me <- function(df, fe_type, fit_fn = "impute_fit.Rds") {
+impute_me <- function(df, fe_type, fit_fn = "imputation/impute_fit.Rds") {
   if (fe_type == "training") {
     big_fit <- lm(formula(paste0("cbind(",
                                  paste("pre_morph_emb", 0:31, sep = "_", collapse = ", "),
