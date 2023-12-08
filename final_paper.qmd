@@ -1,7 +1,8 @@
 ---
 title: "Predicting when two neurons will form a synapse"
 author: "Prayag Gordy"
-format: pdf
+format:
+  ieee-pdf: default
 ---
 
 ## Quarto
