@@ -61,7 +61,7 @@ logistic_rec <- tree_rec |>
 	step_dummy(all_nominal_predictors()) |>
 	step_mutate(projection_region_change = as.numeric(projection_region_change))
 
-logistic_spec <- logistic_reg(penalty = tune(), mixture = ) |>
+logistic_spec <- logistic_reg(penalty = tune(), mixture = tune()) |>
 	set_mode("classification") |>
 	set_engine("glmnet")
 ```
