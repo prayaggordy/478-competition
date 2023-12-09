@@ -14,16 +14,23 @@ bibliography: references.bib
 nocite: |
   @*
 abstract: |
-  I used boosted trees to predict when two neurons will synapse or form a connection. First, I used linear regression models to impute missing morph embedding data. Then, I constructed a suite of new features, including additional distance estimates, categories of projection regions, percentiles of neuron popularity, and similarity and norm metrics for morph embeddings and feature weights. I tuned seven hyperparameters of a gradient-boosted tree model over a 30-point grid with Latin hypercube sampling, then ran the model through another 10 hyperparameter combinations in a Bayesian tuning setup. I performed well in the competition, ranking third and fifth on the public and private leaderboards, respectively.
+  I used a stacking model with logistic regression, random forest, and gradient-boosted trees to predict when two neurons will synapse or form a connection. First, I used linear regression models to impute missing morphological embedding data. Then, I constructed a suite of new features, including additional distance estimates, categories of projection regions, percentiles of neuron popularity, and similarity and norm metrics for morphological embeddings and feature weights. I tuned five initial models: (1) logistic regression using a grid search; (2) random forest using a grid search; (3) random forest using Bayesian optimization built on (2); (4) boosted trees using a grid search with Latin hypercube sampling; and (5) boosted trees using Bayesian optimization built on (4). To determine the final classification, I took the mode of the predictions from each of the five models. Though my stacking model would have ranked 47th on the public leaderboard, it ranked fifth on the private leaderboard, suggesting that my approach reduced overfitting.
 ---
 
 # Introduction
 
-[T]{.IEEEPARstart}[his]{} is my project.
+[T]{.IEEEPARstart}[he]{} overall goal of this competition was to predict when two neurons will synapse or form a connection. As described in the competition guidelines, each observation in the data is a pair of neurons in axonaldendritic proximity, a necessary but not sufficient criterion to form a synapse. Each synapse occurs between a pre-synaptic neuron — whose axon is involved in the synapse — and a post-synaptic neuron (dendrite). Neurons can form synapses with multiple other neurons, and can form multiple synapses with a single other neuron. Neurons can be pre-synaptic in one ADP and post-synaptic in another. It would not make sense for a neuron to synapse with itself.
+
+The distance between the axonal and dendritic ADP coordinates was provided, but other potential distances of interest were not. Given that our entire estimation procedure is a conditional one — when do neurons form a synapse _given_ they are in close proximity — I engineered features representing additional potential distances of interest.
+
+Computational resources were likely to be strained, so I avoided introducing too many additional features. I also sought to compress the 32 morphological embedding and 512 feature weight measurements — which are joined with both of the pre-synaptic and post-synaptic neurons — to reduce the number of predictors and to avoid overfitting. I used three-fold cross-validation with creative tuning approaches such as Bayesian optimization and Latin hypercube sampling to explore as much of the hyperparameter space as realistically possible with constrained computation time.
 
 # Methods
 
-Here are the methods.
+## Feature engineering
+
+
+## Tuning
 
 
 # Results
