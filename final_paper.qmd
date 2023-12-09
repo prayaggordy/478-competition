@@ -108,7 +108,50 @@ permutation variable importance
 
 # Results
 
-Some results.
+## Prediction
+
+My first submission to the leaderboard was the predictions from a very simple unpenalized logistic regression model, which would have placed me 44th on the final public leaderboard. Then, I submitted my random forest model tuned on a grid, which would have placed 32nd. Tuning a gradient-boosting model with a grid moved me to 10th, and using Bayesian hyperparameter tuning placed me third. My stacked model would have placed me 24th.
+
+I submitted the Bayesian-tuned boosting model and the stacked model for the private leaderboard. The former would have dropped me 15 places to 18th, while the latter jumped 19 places to fifth.
+
+## Interpretability
+
+Interpreting variable importance in a stacked model is difficult, even more so because of my imperfect implementation. Thus, I will look at variable importance in the boosted model, which was the next-best performer.
+
+```{r}
+library(ggplot2)
+load("final_models/tune_bayes_bt_final_15_39_55.Rds")
+```
+
+```{r}
+#| label: fig-xg-vip
+#| fig-height: 6
+#| fig-cap: Variable importance of gradient-boosted trees
+importance_xgb <- xgboost::xgb.importance(model = (final_bt_res |> 
+																									 	workflowsets::extract_fit_parsnip() |> 
+																									 	purrr::pluck("fit"))) |>
+	tibble::as_tibble() |>
+	janitor::clean_names() |>
+	dplyr::mutate(default = ifelse(stringr::str_detect(feature, stringr::str_c(colnames(raw_train), collapse = "|")),
+																 "Existing",
+																 "Engineered"),
+								feature = forcats::as_factor(feature) |>
+									forcats::fct_reorder(gain)) |>
+	dplyr::slice(1:20)
+
+ggplot(importance_xgb, aes(x = gain, y = feature, fill = default)) +
+	geom_bar(stat = "identity") +
+	labs(x = "Variable importance",
+			 y = NULL,
+			 fill = "Predictor type") +
+	theme_minimal() +
+	theme(legend.position = "top") +
+	scale_fill_manual(values = c("Engineered" = "indianred", "Existing" = "cadetblue3"))
+```
+
+@fig-xg-vip shows the variable importance for the `r nrow(importance_xgb)` strongest predictors. The blue bars represent features that were in the original dataset, and the red bars represent features that I engineered — `r sum(importance_xgb$default == "Engineered")` of these `r nrow(importance_xgb)`.
+
+As I suspected, distance metrics were important across the board. The most important predictor overall was the distance between the axonal and dendritic ADPs, and my Euclidean estimates of other distances came close behind. The "within" popularity metric was also relatively important. I was surprised to see that only three of my eight summaries of the morphological embeddings and feature weights came in the top `r nrow(importance_xgb)`.
 
 
 # Discussion
