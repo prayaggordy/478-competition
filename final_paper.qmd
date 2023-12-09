@@ -65,7 +65,9 @@ I computed the Euclidean distances between the axonal ADP and the post-synaptic 
 
 ### Similarities and norms
 
-I wanted to use as much information from the feature weights and morphological embeddings as possible without including every single predictor, which would amount to `r scales::comma((ncol(feature_weights) + ncol(morph_embeddings) - 2) * 2)` additional features.
+I wanted to use as much information from the feature weights and morphological embeddings as possible without including every single predictor, which would amount to `r scales::comma((ncol(feature_weights) + ncol(morph_embeddings) - 2) * 2)` additional features. I settled on eight columns, four for feature weights and four for morphological embeddings. I computed the cosine similarity between the measures on the pre-synaptic and post-synaptic neurons. I also computed the norm of each of the pre-synaptic measures, the post-synaptic measures, and the element-wise difference between the pre-synaptic and post-synaptic measures.
+
+Again, I brought no neuroscientific knowledge to this approach. Based on the competition documentation, I wondered if the magnitude of the feature weights and morphological embeddings mattered (since it said the sign was arbitrary), and I figured that neurons with similar measures may be connected, hence the norm of the element-wise difference.
 
 ### Popularity metrics
 
