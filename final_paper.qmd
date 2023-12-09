@@ -23,14 +23,18 @@ abstract: |
 
 The distance between the axonal and dendritic ADP coordinates was provided, but other potential distances of interest were not. Given that our entire estimation procedure is a conditional one — when do neurons form a synapse _given_ they are in close proximity — I engineered features representing additional potential distances of interest.
 
-Computational resources were likely to be strained, so I avoided introducing too many additional features. I also sought to compress the 32 morphological embedding and 512 feature weight measurements — which are joined with both of the pre-synaptic and post-synaptic neurons — to reduce the number of predictors and to avoid overfitting. I used three-fold cross-validation with creative tuning approaches such as Bayesian optimization and Latin hypercube sampling to explore as much of the hyperparameter space as realistically possible with constrained computation time.
+Computational resources were likely to be strained, so I avoided introducing too many additional features. I also sought to compress the 32 morphological embedding and 512 feature weight measurements — which are joined with both of the pre-synaptic and post-synaptic neurons — to reduce the number of predictors and to avoid overfitting. I used three-fold cross-validation with creative tuning approaches such as Bayesian optimization and Latin hypercube sampling to explore as much of the hyperparameter space as realistically possible with constrained computation time. Then, I took the mode of the predictions of each of five models to finalize my submission.
 
 # Methods
 
 ## Feature engineering
 
 
+
 ## Tuning
+
+
+## Stacking
 
 
 # Results
