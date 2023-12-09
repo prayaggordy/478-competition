@@ -81,15 +81,27 @@ As suggested in the example, I constructed a projection region variable that is 
 
 Crucially, I recognized that we had a large class imbalance in the training data: Only `r scales::percent(sum(raw_train$connected == "TRUE")/nrow(raw_train), accuracy = 0.1)` of the training data observations were connected. There are many ways to solve this, and I chose to oversample the connected observations with a simple bootstrap. I also considered undersampling the majority class, but this would drastically reduce the size of our training data. I could have used SMOTE, which generates synthetic samples of the minority class. However, I was wary of this and other synthetic options because I have so little domain knowledge, and I wanted to minimize this sort of guess-work. Though this simple bootstrap may overfit to the training data, I decided it was my best option.
 
-## Logistic regression
+## Penalized logistic regression
 
-Logistic regression was the most simple model I fit. Log
+Penalized logistic regression was the most simple model I fit. Logistic regression is a great first classifier, and I wanted to establish some sort of baseline performance. I introduced hyperparameter tuning by varying the penalty parameter $\lambda$ and by varying $\alpha$, the balance between a lasso and ridge setup, resulting in an elastic net. I tuned over a grid of 30 points with three-fold cross-validation, saving the best model in terms of the balanced accuracy metric, _i.e._, the average of the sensitivity and specificity.
 
 ## Random forest
 
+Then, I stepped up to a random forest. Some existing research suggests that random forests are the best classifiers [@RFsoGood], and from our exercises in class and on problem sets it is clear that they perform well. There is also a lot of room to tune these models, which I found useful in this setup.
+
+I first tuned my random forest model over three hyperparameters: the number of predictors randomly sampled for each decision tree, the number of decision trees, and the minimum node size required for another split. From my initial testing, I noticed that a large number of short trees seemed to perform well, so I created a six-point grid ranging from 2,200 to 4,000 trees and 12,000 to 22,000 data points as the minimum node size. I tried between $3$ and $6$ predictors for each tree.
+
+After this short tuning was completed, I built on those results using Bayesian hyperparameter optimization. This method attempts to balance exploration and exploitation in the hyperparameter space [@TMWR]. That is, it is important to _explore_ across the space to get out of local minima; at the same time, hyperparameter combinations nearby well-performing ones will tend to result in strong models, hence, _exploitation_. Bayesian hyperparameter optimization balances exploration and exploitation through an acquisition function, which is generally expected improvement [@BOP]. Because Bayesian hyperparameter optimization works around a Gaussian process model, we can take advantage of probability distributions to determine a point in the hyperparameter space that is expected to most improve upon the current best output [@WUSTL].
+
+I chose to run the Bayesian tuning for 10 iterations, implemented with the `tune` package from the `tidymodels` framework [@tune]. I once again set bounds on the hyperparameters to somewhat limit exploration. Specifically, I limited the number of predictors for each decision tree to be between $2$ and $10$, the number of trees between 2,000 and 6,000, and the minimum node size to split between 15,000 and 40,000.
+
+At the end of the process, I had considered $16$ hyperparameter combinations. I saved the best model from the grid search and the best model from the Bayesian hyperparameter optimization.
 
 ## Gradient-boosted trees
 
+Next, I used gradient boosting to fit another type of tree model. Gradient boosting 
+
+permutation variable importance
 
 ## Stacking
 
@@ -103,10 +115,12 @@ Some results.
 
 Discuss.
 
+It is also worth noting that `finetune` provides many other tuning methods [@finetune]. For instance, I could have chosen simulated annealing or a racing method.
+
 
 # Acknowledgements {-}
 
-I worked alone and completed every step myself.
+I worked alone and completed every step myself. I wrote all code in R and primarily fit models using the `tidymodels` framework [@tidymodels]. I wrote this final paper in Quarto using an IEEE theme from David Folio [-@TemplateIEEE].
 
 
 # References {-}
