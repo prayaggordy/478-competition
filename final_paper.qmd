@@ -13,6 +13,8 @@ format:
 bibliography: references.bib
 nocite: |
   @*
+abstract: |
+  I used boosted trees to predict when two neurons will synapse or form a connection. First, I used linear regression models to impute missing morph embedding data. Then, I constructed a suite of new features, including additional distance estimates, categories of projection regions, percentiles of neuron popularity, and similarity and norm metrics for morph embeddings and feature weights. I tuned seven hyperparameters of a gradient-boosted tree model over a 30-point grid with Latin hypercube sampling, then ran the model through another 10 hyperparameter combinations in a Bayesian tuning setup. I performed well in the competition, ranking third and fifth on the public and private leaderboards, respectively.
 ---
 
 # Introduction
