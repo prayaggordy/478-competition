@@ -15,6 +15,9 @@ nocite: |
   @*
 abstract: |
   I used a stacking model with logistic regression, random forest, and gradient-boosted trees to predict when two neurons will synapse or form a connection. First, I used linear regression models to impute missing morphological embedding data. Then, I constructed a suite of new features, including additional distance estimates, categories of projection regions, percentiles of neuron popularity, and similarity and norm metrics for morphological embeddings and feature weights. I tuned five initial models: (1) logistic regression using a grid search; (2) random forest using a grid search; (3) random forest using Bayesian optimization built on (2); (4) boosted trees using a grid search with Latin hypercube sampling; and (5) boosted trees using Bayesian optimization built on (4). To determine the final classification, I took the mode of the predictions from each of the five models. Though my stacking model would have ranked 47th on the public leaderboard, it ranked fifth on the private leaderboard, suggesting that my approach reduced overfitting.
+execute: 
+  eval: true
+  echo: false
 ---
 
 # Introduction
@@ -27,9 +30,47 @@ Computational resources were likely to be strained, so I avoided introducing too
 
 # Methods
 
+```{r}
+#| message: false
+raw_train <- readr::read_csv("neuron-synapse-prediction/train_data.csv") |>
+	dplyr::mutate(connected = forcats::as_factor(connected) |>
+									forcats::fct_relevel(c("TRUE", "FALSE")))
+feature_weights <- readr::read_csv("neuron-synapse-prediction/feature_weights.csv")
+morph_embeddings <- readr::read_csv("neuron-synapse-prediction/morph_embeddings.csv")
+```
+
+```{r}
+raw_train |>
+	dplyr::select(ID, pre_nucleus_id, post_nucleus_id) |>
+	dplyr::left_join(morph_embeddings |>
+									 	dplyr::select(nucleus_id, morph_pre = morph_emb_0),
+									 by = c("pre_nucleus_id" = "nucleus_id")) |>
+	dplyr::left_join(morph_embeddings |>
+									 	dplyr::select(nucleus_id, morph_post = morph_emb_0),
+									 by = c("post_nucleus_id" = "nucleus_id")) |>
+	tidyr::pivot_longer(cols = c(morph_pre, morph_post),
+											names_prefix = "morph_") |>
+	dplyr::group_by(name) |>
+	dplyr::summarize(missing = sum(is.na(value))/dplyr::n(),
+									 available = sum(!is.na(value))/dplyr::n()) |>
+	dplyr::arrange(dplyr::desc(missing)) |>
+	dplyr::mutate(name = ifelse(name == "pre", "Pre-synaptic", "Post-synaptic"),
+								dplyr::across(c(missing, available), scales::percent)) |>
+	dplyr::rename(`Neuron type` = name, `Percentage missing` = missing, `Percentage available` = available)
+```
+
+
 ## Feature engineering
 
+### Imputation
 
+My first feature engineering step was to impute the missing morphological embedding data.
+
+### Distance metrics
+
+Distance is clearly important in predicting when two neurons will form a synapse. Since we have multiple coordinates for each neuron, I decided to compute some of the relevant distances. The distance between the axonal and dendritic ADP coordinates was already given as `adp_dist`.
+
+First, I computed the 
 
 ## Tuning
 
