@@ -38,6 +38,12 @@ trees_test_fe <- do_feature_engineering(trees_test, fe_type = "testing")
 ```
 
 ```{r}
+save(trees_train_fe, file = "fe_data/trees_train_fe.Rds")
+save(trees_test_fe, file = "fe_data/trees_test_fe.Rds")
+```
+
+
+```{r}
 #| message: false
 DF_TEST <- readr::read_csv("neuron-synapse-prediction/leaderboard_data.csv") |>
 	do_feature_engineering(fe_type = "testing")
