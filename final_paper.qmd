@@ -40,39 +40,46 @@ morph_embeddings <- readr::read_csv("neuron-synapse-prediction/morph_embeddings.
 ```
 
 ```{r}
-raw_train |>
+missing_pre_morph <- raw_train |>
 	dplyr::select(ID, pre_nucleus_id, post_nucleus_id) |>
 	dplyr::left_join(morph_embeddings |>
 									 	dplyr::select(nucleus_id, morph_pre = morph_emb_0),
 									 by = c("pre_nucleus_id" = "nucleus_id")) |>
-	dplyr::left_join(morph_embeddings |>
-									 	dplyr::select(nucleus_id, morph_post = morph_emb_0),
-									 by = c("post_nucleus_id" = "nucleus_id")) |>
-	tidyr::pivot_longer(cols = c(morph_pre, morph_post),
-											names_prefix = "morph_") |>
-	dplyr::group_by(name) |>
-	dplyr::summarize(missing = sum(is.na(value))/dplyr::n(),
-									 available = sum(!is.na(value))/dplyr::n()) |>
-	dplyr::arrange(dplyr::desc(missing)) |>
-	dplyr::mutate(name = ifelse(name == "pre", "Pre-synaptic", "Post-synaptic"),
-								dplyr::across(c(missing, available), scales::percent)) |>
-	dplyr::rename(`Neuron type` = name, `Percentage missing` = missing, `Percentage available` = available)
+	dplyr::summarize(morph_pre = sum(is.na(morph_pre))/dplyr::n()) |>
+	dplyr::pull()
 ```
-
 
 ## Feature engineering
 
 ### Imputation
 
-My first feature engineering step was to impute the missing morphological embedding data.
+My first feature engineering step was to impute the missing morphological embedding data. Though none of the post-synaptic neuron morphological embedding data were missing, we did not have morphological embeddings for `r scales::percent(missing_pre_morph)` of the pre-synaptic neurons. Instead of dropping rows, I imputed since some of the methods I used require no missing values.
+
+There are many imputation methods, including but not limited to tree models, $K$ nearest-neighbors, and mean assignment. I chose linear regression imputation. Crucially, I did not have any neuroscientific understanding of these morphological embeddings, so I was operating somewhat in the dark. I noticed that each morphological embedding on its own looks to have a bell-shaped distribution with a mean around $0$ and a range from $-2$ to $2$, and that I could not discern many other patterns. I could have chosen a variety of imputation methods, each with their own hyperparameters, and tuned and validated them, but the marginal benefit to this intensive approach seemed minor. Linear regression is fast and simple, and especially because I was using summaries of each morphological embedding, I was satisfied.
 
 ### Distance metrics
 
 Distance is clearly important in predicting when two neurons will form a synapse. Since we have multiple coordinates for each neuron, I decided to compute some of the relevant distances. The distance between the axonal and dendritic ADP coordinates was already given as `adp_dist`.
 
-First, I computed the 
+I computed the Euclidean distances between the axonal ADP and the post-synaptic nucleus, the dendritic ADP and the pre-synaptic nucleus, the pre-synaptic nucleus and post-synaptic nucleus, and the pre-synaptic readout location and post-synaptic readout location.
 
-## Tuning
+### Similarities and norms
+
+I wanted to use as much information from the feature weights and morphological embeddings as possible without including every single predictor, which would amount to `r scales::comma((ncol(feature_weights) + ncol(morph_embeddings) - 2) * 2)` additional features.
+
+### Popularity metrics
+
+
+### Other feature engineering
+
+
+## Logistic regression
+
+
+## Random forest
+
+
+## Gradient-boosted trees
 
 
 ## Stacking
