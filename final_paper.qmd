@@ -1,6 +1,13 @@
 ---
 title: "Predicting when two neurons will form a synapse"
-author: "Prayag Gordy"
+author:
+  - id: pgordy
+    name: Prayag Gordy
+    affiliations:
+      - name: Rice University
+        department: ELEC 478
+        city: Houston
+        country: United States
 format:
   ieee-pdf: default
 bibliography: references.bib
@@ -29,7 +36,7 @@ Discuss.
 
 # Acknowledgements {-}
 
-I did all the work.
+I worked alone and completed every step myself.
 
 
 # References {-}
