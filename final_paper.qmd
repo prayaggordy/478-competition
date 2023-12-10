@@ -151,7 +151,7 @@ Though I could not find literature on the topic, my intuition tells me that the 
 
 Like with the random forests, I saved two final models here: the best model from the Latin hypercube sampling scheme, and the best model after Bayesian optimization.
 
-
+I also retained the variable importance from the final model fit after Bayesian optimization. `xgboost` provides two measures of variable importance: gain and cover. Gain is the improvement in accuracy that a feature provides — that is, how much better the classification is after a tree splits on that feature. Cover focuses on the _gradient_ part of the gradient boosting, representing the importance of a feature in minimizing the loss function. These two measures generally track very closely.
 
 ## Stacking
 
@@ -185,10 +185,11 @@ importance_xgb <- xgboost::xgb.importance(model = (final_bt_res |>
 																 "Existing",
 																 "Engineered"),
 								feature = forcats::as_factor(feature) |>
-									forcats::fct_reorder(gain)) |>
-	dplyr::slice(1:20)
+									forcats::fct_reorder(gain))
 
-ggplot(importance_xgb, aes(x = gain, y = feature, fill = default)) +
+importance_xgb |>
+	dplyr::slice(1:20) |>
+	ggplot(aes(x = gain, y = feature, fill = default)) +
 	geom_bar(stat = "identity") +
 	labs(x = "Variable importance",
 			 y = NULL,
@@ -202,6 +203,7 @@ ggplot(importance_xgb, aes(x = gain, y = feature, fill = default)) +
 
 As I suspected, distance metrics were important across the board. The most important predictor overall was the distance between the axonal and dendritic ADPs, and my Euclidean estimates of other distances came close behind. The "within" popularity metric was also relatively important. I was surprised to see that only three of my eight summaries of the morphological embeddings and feature weights came in the top `r nrow(importance_xgb)`.
 
+I used the gain measure from `xgboost`. The correlation between the gain and cover importance metrics was `r cor(importance_xgb$gain, importance_xgb$cover)`, so my results would have been very similar either way.
 
 # Discussion
 
