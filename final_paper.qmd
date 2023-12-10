@@ -287,7 +287,8 @@ final_preds |>
 									 `Predicted connected` = dplyr::n(),
 									 `False positives` = `Predicted connected` - `Truly connected`,
 									 `% false positive` = scales::percent(`False positives`/`Predicted connected`,
-									 																		  accuracy = 0.001))
+									 																		  accuracy = 0.001)) |>
+	dplyr::rename(`Models predicting connected` = total_true)
 ```
 
 
