@@ -214,7 +214,7 @@ I used the gain measure from `xgboost`. The correlation between the gain and cov
 
 # Discussion
 
-## Neuroscientific findings
+## Neuroscientific findings {#sec-disc-features}
 
 The most clear finding is the importance of the distance between the pre-synaptic neuron and the post-synaptic neuron in predicting a connection. Even a simple boxplot (@fig-adp-dist) shows that the ADP distance is an important feature. In all, the training dataset had seven distance measures, including the four I engineered. Five of the six most important features were distance measures.
 
@@ -321,7 +321,11 @@ As I wrote in @sec-stacking, my stacking method was imperfect since I assigned e
 
 ## Future directions
 
-It is also worth noting that `finetune` provides many other tuning methods [@finetune]. For instance, I could have chosen simulated annealing or a racing method.
+I wrote about many future directions in @sec-disc-features. Broadly, I believe that I needed a different approach to incorporating the morphological embeddings and feature weights. I would consider trying to include all 1,088 as predictors.
+
+There are also a few other tuning methods I could have used from the `finetune` package [@finetune]. For instance, I could have chosen simulated annealing or a racing method.
+
+However, I believe the most substantial benefit would have come from tuning on larger grids and stacking properly. By initially tuning on a larger, wider grid, I would give the Bayesian optimization process more information to work with; I could then run more than 10 iterations to find even better hyperparameter tuples. I also wish I had used ten folds instead of three in the cross-validation. I could have had hundreds of models tuned with a wide variety of hyperparameters to pass into a proper stacking method. This would have almost certainly further reduced overfitting and resulted in a stronger model.
 
 # Acknowledgements {-}
 
