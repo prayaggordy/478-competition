@@ -153,7 +153,7 @@ Like with the random forests, I saved two final models here: the best model from
 
 I also retained the variable importance from the final model fit after Bayesian optimization. `xgboost` provides two measures of variable importance: gain and cover. Gain is the improvement in accuracy that a feature provides — that is, how much better the classification is after a tree splits on that feature. Cover focuses on the _gradient_ part of the gradient boosting, representing the importance of a feature in minimizing the loss function. These two measures generally track very closely.
 
-## Stacking
+## Stacking {#sec-stacking}
 
 With five tuned and trained models in hand, I decided to take one last step and stack them. Model stacking is conceptually similar to other ensemble methods like random forests. The idea is to combine weaker learners to create a stronger one. The idea of "stronger" with this model stacking refers specifically to overfitting.
 
@@ -163,11 +163,11 @@ I took the mode instead, in effect weighing all members equally. I did decide to
 
 # Results
 
-## Prediction
+## Prediction {#sec-pred}
 
 My first submission to the leaderboard was the predictions from a very simple unpenalized logistic regression model, which would have placed me 44th on the final public leaderboard. Then, I submitted my random forest model tuned on a grid, which would have placed 32nd. Tuning a gradient-boosting model with a grid moved me to 10th, and using Bayesian hyperparameter tuning placed me third. My stacked model would have placed me 24th.
 
-I submitted the Bayesian-tuned boosting model and the stacked model for the private leaderboard. The former would have dropped me 15 places to 18th, while the latter jumped 19 places to fifth.
+I submitted the Bayesian-tuned boosting model and the stacked model for the private leaderboard. The former would have dropped me 15 places to 18th, while the latter jumped 19 places to fifth. Overall, I finished in fifth place (second among undergraduates) on the private leaderboard with my stacking model.
 
 ## Interpretability
 
@@ -214,11 +214,79 @@ I used the gain measure from `xgboost`. The correlation between the gain and cov
 
 # Discussion
 
-Discuss.
+## Neuroscientific findings
+
+The most clear finding is the importance of the distance between the pre-synaptic neuron and the post-synaptic neuron in predicting a connection. Even a simple boxplot (@fig-adp-dist) shows that the ADP distance is an important feature. In all, the training dataset had seven distance measures, including the four I engineered. Five of the six most important features were distance measures.
+
+This suggests that the distance between the pre-synaptic neuron and the post-synaptic neuron is of utmost importance in predicting when two neurons form a synapse, even conditioned on the fact that the neurons are in an ADP. If I knew more about the neuroscience I would be able to suggest additional distance measures; I am sure someone with more domain knowledge would be able to produce options.
+
+I was surprised to see that some of the underlying coordinates themselves were important features. I did not fully understand how the coordinate system was created for the mice, so it is hard for me to interpret why. Perhaps it has something to do with the shape of the neurons. I wonder if a metric of compactness would prove important.
+
+Finally, the importance — or lack thereof — of the summary metrics of morphological embeddings and feature weights was certainly underwhelming. I am not sure how well the morphological embeddings and feature weights individually perform as predictors, but I would certainly try including them next time. That said, all these points are specific to the gradient-boosted decision tree model. Feature importance may have been different in other models, and perhaps the summary metrics performed well there.
+
+```{r}
+#| label: fig-adp-dist
+#| fig-height: 4
+#| fig-cap: ADP distance for connected and disconnected ADPs
+raw_train |>
+	dplyr::mutate(connected = forcats::fct_relabel(connected, \(x) ifelse(x == "TRUE", "Connected", "Disconnected"))) |>
+	ggplot(aes(x = connected, y = adp_dist)) + 
+	geom_boxplot() +
+	theme_minimal() +
+	labs(x = NULL,
+			 y = "ADP distance")
+```
+
+More broadly, I also learned how difficult it is to conduct research with no understanding of the underlying topic. I always thought that enough data science skill could make up for a lack of domain knowledge; to a certain extent this is true — I did place fifth in the class — but I am sure I would have performed markedly better with a deeper understanding of the features.
+
+## Tuning and overfitting
+
+```{r}
+load(file = "predictions/final_preds.Rds")
+```
+
+```{r}
+#| label: tbl-six-res
+#| tbl-cap: Public and private leaderboard accuracies of five models and their stack
+final_preds |>
+	dplyr::select(-dplyr::ends_with("_lg"), -total_true) |>
+	tidyr::pivot_longer(cols = dplyr::starts_with("pred")) |>
+	dplyr::mutate(connected_fctr = forcats::as_factor(connected) |>
+									forcats::fct_relevel(c("TRUE", "FALSE"))) |>
+	dplyr::group_by(name, usage) |>
+	tidyr::nest() |>
+	dplyr::ungroup() |>
+	dplyr::mutate(estimate = purrr::map(data, \(d) yardstick::bal_accuracy(d, connected_fctr, value))) |>
+	dplyr::select(-data) |>
+	tidyr::unnest(estimate) |>
+	tidyr::pivot_wider(names_from = usage, values_from = .estimate) |>
+	dplyr::mutate(Model = dplyr::case_match(name,
+																					"pred_final_bayes_bt" ~ "Boosting, Bayesian",
+																					"pred_final_bayes_rf" ~ "Random forest, Bayesian",
+																					"pred_final_grid_bt" ~ "Boosting, grid",
+																					"pred_final_grid_rf" ~ "Random forest, grid",
+																					"pred_final_grid_logistic" ~ "Logistic, grid",
+																					"pred_final_stack" ~ "Stack"),
+								Delta = Private - Public) |>
+	dplyr::select(Model, Public, Private, Delta) |>
+	dplyr::arrange(dplyr::desc(Private)) |>
+	dplyr::mutate(dplyr::across(c(Public, Private, Delta), \(x) round(x, 3)))
+```
+
+I spent a lot of time thinking about model training and stacking. @tbl-six-res shows the results of each of the five individual models and the stacked model on the leaderboard data, split between the public and private leaderboards. As I discussed in @sec-pred, I finished in fifth place overall thanks to the stacking model, which saw a large increase in performance from its place on the public leaderboard.
+
+All my models improved on the private leaderboard. The improvements in each of the individual models carried over to improvements in the stacked model. As I alluded to in @sec-stacking, stacked models decrease overfitting by using a voting philosophy: Multiple models will know better than just one. We can see this in action by looking at the confusion matrix for the stacking apparatus depending on how many individual models predicted a connection.
+
+
+
+
+
 
 It is also worth noting that `finetune` provides many other tuning methods [@finetune]. For instance, I could have chosen simulated annealing or a racing method.
 
 table with testing accuracy on each individual model and on the stacked model; maybe also the sum of TRUE across the models, then show how many of sum==1 were actually false, how many of sum==2 were false, etc. could be a plot
+
+## Future directions
 
 
 # Acknowledgements {-}
