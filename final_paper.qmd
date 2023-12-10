@@ -124,7 +124,7 @@ load("grid_results/tune_bayes_bt_04_46_40.Rds")
 ```{r}
 #| label: fig-bt-lhs
 #| fig-height: 6
-#| fig-cap: Latin hypercubing sampling results for three gradient-boosted decision tree model hyperparameters
+#| fig-cap: Latin hypercubing sampling and Bayesian hyperparameter optimization results for three gradient-boosted decision tree model hyperparameters
 grids <- res_bayes_bt |>
 	workflowsets::collect_metrics() |>
 	dplyr::mutate(learn_rate = log10(learn_rate),
@@ -145,7 +145,7 @@ ggplot(grids, aes(x = .panel_x, y = .panel_y, color = sampling_stage)) +
 	theme(legend.position = "top")
 ```
 
-As the plot shows, Latin hypercube sampling (in green) does not result in a neat grid. Instead, the space is more filled, including with some points reaching the edges of the hyperparameter space. We also see some gaps, which is partly a product of ploting a seven-dimensional grid in two dimensions — the method focuses on filling the entire space, not just any two hyperparameters' space. Using a traditional grid with only 30 points would not let us test so many different setups nearly as well as this Latin hypercube sampling scheme.
+As @fig-bt-lhs shows, Latin hypercube sampling (in green) does not result in a neat grid. Instead, the space is more filled, including with some points reaching the edges of the hyperparameter space. We also see some gaps, which is partly a product of ploting a seven-dimensional grid in two dimensions — the method focuses on filling the entire space, not just any two hyperparameters' space. Using a traditional grid with only 30 points would not let us test so many different setups nearly as well as this Latin hypercube sampling scheme.
 
 Though I could not find literature on the topic, my intuition tells me that the Latin hypercube sampling method is a great first stage to pass to Bayesian optimization. As discussed in @sec-rf, Bayesian hyperparameter tuning focuses on exploration and exploitation. The Latin hypercube scheme does much of the overall exploration, letting the Bayesian optimization focus on exploitation in the open pockets of the hypercube. The orange points show the 10 hyperparameter tuples tested in the Bayesian tuning process; a few explore away from the Latin hypercube samples, but fill gaps between previous draws.
 
