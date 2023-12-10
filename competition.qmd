@@ -38,15 +38,15 @@ trees_test_fe <- do_feature_engineering(trees_test, fe_type = "testing")
 ```
 
 ```{r}
-save(trees_train_fe, file = "fe_data/trees_train_fe.Rds")
-save(trees_test_fe, file = "fe_data/trees_test_fe.Rds")
-```
-
-
-```{r}
 #| message: false
 DF_TEST <- readr::read_csv("neuron-synapse-prediction/leaderboard_data.csv") |>
 	do_feature_engineering(fe_type = "testing")
+```
+
+```{r}
+save(trees_train_fe, file = "fe_data/trees_train_fe.Rds")
+save(trees_test_fe, file = "fe_data/trees_test_fe.Rds")
+save(DF_TEST, file = "fe_data/df_test.Rds")
 ```
 
 ```{r}
@@ -423,5 +423,39 @@ final_test_preds |>
 	dplyr::mutate(connected = as.character(mode_true) |> stringr::str_to_title()) |>
 	dplyr::select(ID, connected) |>
 	readr::write_csv(paste0("PRED_stack", format(Sys.time(), "%H_%M_%S"), ".csv"))
+```
+
+```{r}
+final_preds <- 
+	augment(final_bayes_bt, df_test) |> dplyr::select(ID, connected, usage = Usage, pred_final_bayes_bt = .pred_class) |>
+	dplyr::left_join(
+		augment(final_bayes_rf, df_test) |> dplyr::select(ID, pred_final_bayes_rf = .pred_class),
+		by = "ID"
+	) |>
+	dplyr::left_join(
+		augment(final_grid_bt, df_test) |> dplyr::select(ID, pred_final_grid_bt = .pred_class),
+		by = "ID"
+	) |>
+	dplyr::left_join(
+		augment(final_grid_rf, df_test) |> dplyr::select(ID, pred_final_grid_rf = .pred_class),
+		by = "ID"
+	) |>
+	dplyr::left_join(
+		augment(final_grid_logistic, df_test) |> dplyr::select(ID, pred_final_grid_logistic = .pred_class),
+		by = "ID"
+	) |>
+	dplyr::mutate(dplyr::across(dplyr::starts_with("pred"), as.logical, .names = "{.col}_lg"),
+								total_true = pred_final_bayes_bt_lg + 
+									             pred_final_bayes_rf_lg + 
+									             pred_final_grid_bt_lg + 
+									             pred_final_grid_rf_lg + 
+									             pred_final_grid_logistic_lg,
+								pred_final_stack = (total_true >= 3) |>
+									forcats::as_factor() |>
+									forcats::fct_relevel(c("TRUE", "FALSE")))
+```
+
+```{r}
+save(final_preds, file = "predictions/final_preds.Rds")
 ```
 
