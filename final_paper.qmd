@@ -32,6 +32,8 @@ Computational resources were likely to be strained, so I avoided introducing too
 
 ```{r}
 #| message: false
+library(ggplot2)
+
 raw_train <- readr::read_csv("neuron-synapse-prediction/train_data.csv") |>
 	dplyr::mutate(connected = forcats::as_factor(connected) |>
 									forcats::fct_relevel(c("TRUE", "FALSE")))
@@ -85,7 +87,7 @@ Crucially, I recognized that we had a large class imbalance in the training data
 
 Penalized logistic regression was the most simple model I fit. Logistic regression is a great first classifier, and I wanted to establish some sort of baseline performance. I introduced hyperparameter tuning by varying the penalty parameter $\lambda$ and by varying $\alpha$, the balance between a lasso and ridge setup, resulting in an elastic net. I tuned over a grid of 30 points with three-fold cross-validation, saving the best model in terms of the balanced accuracy metric, _i.e._, the average of the sensitivity and specificity.
 
-## Random forest
+## Random forest {#sec-rf}
 
 Then, I stepped up to a random forest. Some existing research suggests that random forests are the best classifiers [@RFsoGood], and from our exercises in class and on problem sets it is clear that they perform well. There is also a lot of room to tune these models, which I found useful in this setup.
 
@@ -97,11 +99,59 @@ I chose to run the Bayesian tuning for 10 iterations, implemented with the `tune
 
 At the end of the process, I had considered $16$ hyperparameter combinations. I saved the best model from the grid search and the best model from the Bayesian hyperparameter optimization.
 
-## Gradient-boosted trees
+## Gradient-boosted decision trees
 
-Next, I used gradient boosting to fit another type of tree model. Gradient boosting 
+Next, I used gradient boosting to fit another type of tree model in which we iteratively improve the ensemble by introducing new trees trained with the residuals of previous trees. I will use a `tidymodels` wrapper around the `xgboost` package implementation, which provides many hyperparameters to tune, of which I will focus on seven [@xgboost]:
 
-permutation variable importance
+1. the number of trees in the ensemble;
+1. the depth of each of those trees;
+1. the minimum node size required for another split;
+1. the minimum reduction in the loss function required for another split;
+1. the proportion of observations sampled at each iteration;
+1. the number of predictors randomly sampled for each decision tree; and
+1. the learning rate.
+
+In addition to determining the shape of the trees in the ensemble, many of these hyperparameters focus on avoiding overfitting by making the boosting process more conservative and each tree weaker.
+
+Once again, I started with tuning these seven hyperparameters over a grid. Instead of a traditional grid, however, I used the `dials` package implementation of Latin hypercube sampling to find an efficient grid that would be able to fill the hyperparameter space more efficiently [@dials]. Latin hypercube sampling partitions the hyperparameter space into, in my case, 30 different strata with equal probability, then selects a representative value from each [@LHS]. A goal of Latin hypercube sampling is often to maximize the distance between each point in an effort to fill the space [@saves2023smt].
+
+We can see the space-filling property by graphing the initial hyperparameter grid. Because of space constraints, I will only plot three of the hyperparameters, with learning rate in its $\log_{10}$ units.
+
+```{r}
+load("grid_results/tune_bayes_bt_04_46_40.Rds")
+```
+
+```{r}
+#| label: fig-bt-lhs
+#| fig-height: 6
+#| fig-cap: Latin hypercubing sampling results for three gradient-boosted decision tree model hyperparameters
+grids <- res_bayes_bt |>
+	workflowsets::collect_metrics() |>
+	dplyr::mutate(learn_rate = log10(learn_rate),
+								sampling_stage = ifelse(.iter == 0, "Latin hypercube", "Bayesian optimization")) |>
+	dplyr::rename(`# trees` = trees, `# predictors` = mtry, `Learn rate` = learn_rate)
+
+ggplot(grids, aes(x = .panel_x, y = .panel_y, color = sampling_stage)) + 
+  geom_point() +
+  geom_blank() +
+	# geom_path(data = grids |> dplyr::filter(sampling_stage == "Bayesian optimization"),
+	# 					mapping = aes(x = .panel_x, y = .panel_y),
+	# 					inherit.aes = F,
+	# 					show.legend = F) +
+  ggforce::facet_matrix(vars(`# trees`, `# predictors`, `Learn rate`), layer.diag = 2) +
+	labs(color = "Sampling stage") +
+	scale_color_manual(values = c("Latin hypercube" = "chartreuse4", "Bayesian optimization" = "darkgoldenrod2")) +
+	theme_minimal() +
+	theme(legend.position = "top")
+```
+
+As the plot shows, Latin hypercube sampling (in green) does not result in a neat grid. Instead, the space is more filled, including with some points reaching the edges of the hyperparameter space. We also see some gaps, which is partly a product of ploting a seven-dimensional grid in two dimensions — the method focuses on filling the entire space, not just any two hyperparameters' space. Using a traditional grid with only 30 points would not let us test so many different setups nearly as well as this Latin hypercube sampling scheme.
+
+Though I could not find literature on the topic, my intuition tells me that the Latin hypercube sampling method is a great first stage to pass to Bayesian optimization. As discussed in @sec-rf, Bayesian hyperparameter tuning focuses on exploration and exploitation. The Latin hypercube scheme does much of the overall exploration, letting the Bayesian optimization focus on exploitation in the open pockets of the hypercube. The orange points show the 10 hyperparameter tuples tested in the Bayesian tuning process; a few explore away from the Latin hypercube samples, but fill gaps between previous draws.
+
+Like with the random forests, I saved two final models here: the best model from the Latin hypercube sampling scheme, and the best model after Bayesian optimization.
+
+
 
 ## Stacking
 
@@ -119,7 +169,6 @@ I submitted the Bayesian-tuned boosting model and the stacked model for the priv
 Interpreting variable importance in a stacked model is difficult, even more so because of my imperfect implementation. Thus, I will look at variable importance in the boosted model, which was the next-best performer.
 
 ```{r}
-library(ggplot2)
 load("final_models/tune_bayes_bt_final_15_39_55.Rds")
 ```
 
