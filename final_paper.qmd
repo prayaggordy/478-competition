@@ -329,7 +329,7 @@ However, I believe the most substantial benefit would have come from tuning on l
 
 # Acknowledgements {-}
 
-I worked alone and completed every step myself. I wrote all code in R and primarily fit models using the `tidymodels` framework [@tidymodels]. I wrote this final paper in Quarto using an IEEE theme from David Folio [-@TemplateIEEE].
+I worked alone and completed every step myself. I wrote all code in R and fit models using packages from the `tidymodels` framework [@tidymodels]. I wrote this final paper in Quarto using an IEEE theme from David Folio [-@TemplateIEEE].
 
 
 # References {-}
