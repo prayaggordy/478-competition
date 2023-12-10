@@ -208,7 +208,7 @@ importance_xgb |>
 
 As I suspected, distance metrics were important across the board. The most important predictor overall was the distance between the axonal and dendritic ADPs, and my Euclidean estimates of other distances came close behind. The "within" popularity metric was also relatively important. I was surprised to see that only three of my eight summaries of the morphological embeddings and feature weights came in the top `r nrow(importance_xgb)`.
 
-I used the gain measure from `xgboost`. The correlation between the gain and cover importance metrics was `r cor(importance_xgb$gain, importance_xgb$cover)`, so my results would have been very similar either way.
+I used the gain measure from `xgboost`. The correlation between the gain and cover importance metrics was `r round(cor(importance_xgb$gain, importance_xgb$cover), 3)`, so my results would have been very similar either way.
 
 # Discussion
 
