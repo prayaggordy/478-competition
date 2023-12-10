@@ -83,7 +83,7 @@ As suggested in the example, I constructed a projection region variable that is 
 
 Crucially, I recognized that we had a large class imbalance in the training data: Only `r scales::percent(sum(raw_train$connected == "TRUE")/nrow(raw_train), accuracy = 0.1)` of the training data observations were connected. There are many ways to solve this, and I chose to oversample the connected observations with a simple bootstrap. I also considered undersampling the majority class, but this would drastically reduce the size of our training data. I could have used SMOTE, which generates synthetic samples of the minority class. However, I was wary of this and other synthetic options because I have so little domain knowledge, and I wanted to minimize this sort of guess-work. Though this simple bootstrap may overfit to the training data, I decided it was my best option.
 
-## Penalized logistic regression
+## Penalized logistic regression {#sec-plr}
 
 Penalized logistic regression was the most simple model I fit. Logistic regression is a great first classifier, and I wanted to establish some sort of baseline performance. I introduced hyperparameter tuning by varying the penalty parameter $\lambda$ and by varying $\alpha$, the balance between a lasso and ridge setup, resulting in an elastic net. I tuned over a grid of 30 points with three-fold cross-validation, saving the best model in terms of the balanced accuracy metric, _i.e._, the average of the sensitivity and specificity.
 
@@ -155,6 +155,11 @@ I also retained the variable importance from the final model fit after Bayesian 
 
 ## Stacking
 
+With five tuned and trained models in hand, I decided to take one last step and stack them. Model stacking is conceptually similar to other ensemble methods like random forests. The idea is to combine weaker learners to create a stronger one. The idea of "stronger" with this model stacking refers specifically to overfitting.
+
+I only thought of stacking as the submission period was nearing its end, so my implementation was not ideal. The correct way to produce a stacked model is to tune a blend of each of the members. For instance, the `stacks` package in R considers all the models that were fit during the tuning process, _e.g._, all 30 penalized logistic regression models from [@sec-plr] [@stacks]. It also uses probabilities instead of the final classification. Then, it fits a penalized logistic model with each model estimate as a predictor and the final classification as the outcome, which helps to alleviate the almost certainly high multicollinearity between the individual models [@TMWR]. We tune the stacked model with cross-validation to find the best weights for each individual model.
+
+I took the mode instead, in effect weighing all members equally. I did decide to use both random forest models and both gradient-boosting decision tree models to weigh those more heavily than the logistic regression model. To use model stacking with `stacks` one must save a much larger part of the tuning results than I did; I would have had to re-fit all the models, which was not possible at that stage.
 
 # Results
 
@@ -210,6 +215,8 @@ I used the gain measure from `xgboost`. The correlation between the gain and cov
 Discuss.
 
 It is also worth noting that `finetune` provides many other tuning methods [@finetune]. For instance, I could have chosen simulated annealing or a racing method.
+
+table with testing accuracy on each individual model and on the stacked model; maybe also the sum of TRUE across the models, then show how many of sum==1 were actually false, how many of sum==2 were false, etc. could be a plot
 
 
 # Acknowledgements {-}
