@@ -282,7 +282,7 @@ All my models improved on the private leaderboard. The improvements in each of t
 ```{r}
 #| label: fig-metrics
 #| fig-height: 4
-#| fig-cap: Balanced accuracy, sensitiviy, and specificity depending on cutoff for stacked model to predict 'Connected'
+#| fig-cap: Balanced accuracy, sensitiviy, and specificity depending on cutoff for stacked model to predict 'connected'
 sens_spec_bal <- yardstick::metric_set(yardstick::sens, yardstick::spec, yardstick::bal_accuracy)
 
 purrr::map_dfr(
