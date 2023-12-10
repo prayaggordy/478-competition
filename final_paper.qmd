@@ -279,6 +279,40 @@ I spent a lot of time thinking about model training and stacking. @tbl-six-res s
 
 All my models improved on the private leaderboard. The improvements in each of the individual models carried over to improvements in the stacked model. As I alluded to in @sec-stacking, stacked models decrease overfitting by using a voting philosophy: Multiple models will know better than just one. We can see this in action by looking at the confusion matrix for the stacking apparatus depending on how many individual models predicted a connection.
 
+```{r}
+final_preds |>
+	dplyr::mutate(connected_fctr = forcats::as_factor(connected) |>
+									forcats::fct_relevel(c("TRUE", "FALSE")),
+								pred_final_stack = forcats::fct("TRUE", levels = c("TRUE", "FALSE"))) |>
+	dplyr::filter(total_true != 0) |>
+	dplyr::group_by(total_true) |>
+	tidyr::nest() |>
+	dplyr::ungroup() |>
+	dplyr::mutate(conf = purrr::map(
+		data,
+		\(d) {
+			stats <- tibble::tibble(`Truly connected` = sum(d$connected),
+															`Predicted connected` = nrow(d))
+			
+			yardstick::conf_mat(d, truth = connected_fctr, estimate = pred_final_stack) |>
+				tidy() |>
+				dplyr::filter(name %in% c("cell_1_1", "cell_1_2")) |>
+				dplyr::mutate(name = dplyr::case_match(name,
+																							 "cell_1_1" ~ "True positive",
+																							 "cell_1_2" ~ "False positive",
+																							 "cell_2_1" ~ "False negative",
+																							 "cell_2_2" ~ "True negative")) |>
+				tidyr::pivot_wider() |>
+				dplyr::bind_cols(stats)
+		}
+	)) |>
+	dplyr::select(-data) |>
+	tidyr::unnest(conf) |>
+	dplyr::select(total_true, 
+								`Truly connected`, `Predicted connected`, 
+								`True positive`, `False positive`,
+								`True negative`, `False negative`)
+```
 
 
 
