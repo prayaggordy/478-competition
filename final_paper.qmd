@@ -248,6 +248,7 @@ load(file = "predictions/final_preds.Rds")
 ```{r}
 #| label: tbl-six-res
 #| tbl-cap: Public and private leaderboard accuracies of five models and their stack
+#| output: asis
 final_preds |>
 	dplyr::select(-dplyr::ends_with("_lg"), -total_true) |>
 	tidyr::pivot_longer(cols = dplyr::starts_with("pred")) |>
@@ -270,7 +271,8 @@ final_preds |>
 								Delta = Private - Public) |>
 	dplyr::select(Model, Public, Private, Delta) |>
 	dplyr::arrange(dplyr::desc(Private)) |>
-	dplyr::mutate(dplyr::across(c(Public, Private, Delta), \(x) round(x, 3)))
+	dplyr::mutate(dplyr::across(c(Public, Private, Delta), \(x) round(x, 3))) |>
+	knitr::kable(format = "latex")
 ```
 
 I spent a lot of time thinking about model training and stacking. @tbl-six-res shows the results of each of the five individual models and the stacked model on the leaderboard data, split between the public and private leaderboards. As I discussed in @sec-pred, I finished in fifth place overall thanks to the stacking model, which saw a large increase in performance from its place on the public leaderboard.
