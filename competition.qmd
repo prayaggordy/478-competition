@@ -426,6 +426,9 @@ final_test_preds |>
 ```
 
 ```{r}
+df_test <- DF_TEST |>
+	dplyr::inner_join(readr::read_csv("fe_data/solution_data.csv"))
+
 final_preds <- 
 	augment(final_bayes_bt, df_test) |> dplyr::select(ID, connected, usage = Usage, pred_final_bayes_bt = .pred_class) |>
 	dplyr::left_join(
