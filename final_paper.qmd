@@ -14,7 +14,7 @@ bibliography: references.bib
 nocite: |
   @*
 abstract: |
-  I used a stacking model with logistic regression, random forest, and gradient-boosted trees to predict when two neurons will synapse or form a connection. First, I used linear regression models to impute missing morphological embedding data. Then, I constructed a suite of new features, including additional distance estimates, categories of projection regions, percentiles of neuron popularity, and similarity and norm metrics for morphological embeddings and feature weights. I tuned five initial models: (1) logistic regression using a grid search over two hyperparameters; (2) random forest using a grid search over three hyperparameters; (3) random forest using Bayesian optimization built on (2); (4) boosted trees using a grid search with Latin hypercube sampling over seven hyperparameters; and (5) boosted trees using Bayesian optimization built on (4). To determine the final classification, I took the mode of the predictions from each of the five models. Though my stacking model would have ranked 47th on the public leaderboard, it ranked fifth on the private leaderboard, suggesting that my approach reduced overfitting.
+  I used a stacking model with logistic regression, random forest, and gradient-boosted trees to predict when two neurons will synapse or form a connection. First, I used linear regression models to impute missing morphological embedding data. Then, I constructed a suite of new features, including additional distance estimates, categories of projection regions, percentiles of neuron popularity, and similarity and norm metrics for morphological embeddings and feature weights. I tuned five initial models: (1) logistic regression using a grid search over two hyperparameters; (2) random forest using a grid search over three hyperparameters; (3) random forest using Bayesian optimization built on (2); (4) boosted trees using a grid search with Latin hypercube sampling over seven hyperparameters; and (5) boosted trees using Bayesian optimization built on (4). To determine the final classification, I took the mode of the predictions from each of the five models. Though my stacking model would have ranked 47th on the public leaderboard, it ranked fifth on the private leaderboard, suggesting that my approach was robust.
 execute: 
   eval: true
   echo: false
@@ -73,7 +73,7 @@ Again, I brought no neuroscientific knowledge to this approach. Based on the com
 
 ### Popularity metrics
 
-I wondered if the amount of ADPs a neuron is involved in could predict if it will form a synapse. I decided to include two "popularity" metrics. First, I looked at how many times a given pair of a pre-synaptic neuron and a post-synaptic neuron are in an ADP as a sort of "within" metric. Then, I considered how distinct post-synaptic neurons a pre-synaptic neuron is in an ADP with, and vice-versa, as a "between" metric. Since the size of the dataset may vary, I converted these counts to percentiles.
+I wondered if the amount of ADPs a neuron is involved in could predict if it will form a synapse. I decided to include two "popularity" metrics. First, I looked at how many times a given pair of a pre-synaptic neuron and a post-synaptic neuron are in an ADP as a sort of "within" metric. Then, I considered how many distinct post-synaptic neurons a pre-synaptic neuron is in an ADP with, and vice-versa, as a "between" metric. Since the size of the dataset may vary, I converted these counts to percentiles.
 
 I thought a lot about the reliability of these features. If the test dataset is very small, for instance, computing these popularity metrics on only the testing data may yield weird results. However, the size of the training and leaderboard data in this project alleviated my concerns in this instance. Other applications may merit different approaches.
 
@@ -101,7 +101,7 @@ At the end of the process, I had considered $16$ hyperparameter combinations. I 
 
 ## Gradient-boosted decision trees
 
-Next, I used gradient boosting to fit another type of tree model in which we iteratively improve the ensemble by introducing new trees trained with the residuals of previous trees. I will use a `tidymodels` wrapper around the `xgboost` package implementation, which provides many hyperparameters to tune, of which I will focus on seven [@xgboost]:
+Next, I used gradient boosting to fit another type of tree model in which we iteratively improve the ensemble by introducing new trees trained with the residuals of previous trees. I used a `tidymodels` wrapper around the `xgboost` package implementation, which provides many hyperparameters to tune, of which I chose seven [@xgboost]:
 
 1. the number of trees in the ensemble;
 1. the depth of each of those trees;
@@ -145,7 +145,7 @@ ggplot(grids, aes(x = .panel_x, y = .panel_y, color = sampling_stage)) +
 	theme(legend.position = "top")
 ```
 
-As @fig-bt-lhs shows, Latin hypercube sampling (in green) does not result in a neat grid. Instead, the space is more filled, including with some points reaching the edges of the hyperparameter space. We also see some gaps, which is partly a product of ploting a seven-dimensional grid in two dimensions — the method focuses on filling the entire space, not just any two hyperparameters' space. Using a traditional grid with only 30 points would not let us test so many different setups nearly as well as this Latin hypercube sampling scheme.
+As @fig-bt-lhs shows, Latin hypercube sampling (in green) does not result in a neat grid. Instead, the space is more filled, including with some points reaching the edges of the hyperparameter space. We also see some gaps, which is partly a product of ploting a seven-dimensional grid in two dimensions — the method focuses on filling the entire space, not just any two hyperparameters' space. Using a traditional grid with only 30 points would not let us test so many meaningfully different setups nearly as well as this Latin hypercube sampling scheme.
 
 Though I could not find literature on the topic, my intuition tells me that the Latin hypercube sampling method is a great first stage to pass to Bayesian optimization. As discussed in @sec-rf, Bayesian hyperparameter tuning focuses on exploration and exploitation. The Latin hypercube scheme does much of the overall exploration, letting the Bayesian optimization focus on exploitation in the open pockets of the hypercube. The orange points show the 10 hyperparameter tuples tested in the Bayesian tuning process; a few explore away from the Latin hypercube samples, but fill gaps between previous draws.
 
@@ -155,11 +155,11 @@ I also retained the variable importance from the final model fit after Bayesian 
 
 ## Stacking {#sec-stacking}
 
-With five tuned and trained models in hand, I decided to take one last step and stack them. Model stacking is conceptually similar to other ensemble methods like random forests. The idea is to combine weaker learners to create a stronger one. The idea of "stronger" with this model stacking refers specifically to overfitting.
+With five tuned and trained models in hand, I decided to take one last step and stack them. Model stacking is conceptually similar to other ensemble methods like random forests. The idea is to combine weaker learners to create a stronger one. The idea of "stronger" with this model stacking refers specifically to avoiding overfitting.
 
-I only thought of stacking as the submission period was nearing its end, so my implementation was not ideal. The correct way to produce a stacked model is to tune a blend of each of the members. For instance, the `stacks` package in R considers all the models that were fit during the tuning process, _e.g._, all 30 penalized logistic regression models from [@sec-plr] [@stacks]. It also uses probabilities instead of the final classification. Then, it fits a penalized logistic model with each model estimate as a predictor and the final classification as the outcome, which helps to alleviate the almost certainly high multicollinearity between the individual models [@TMWR]. We tune the stacked model with cross-validation to find the best weights for each individual model.
+I only thought of stacking as the submission period was nearing its end, so my implementation was not ideal. The correct way to produce a stacked model is to tune a blend of each of the members. For instance, the `stacks` package in R considers all the models that were fit during the tuning process, _e.g._, all 30 penalized logistic regression models from [@sec-plr] [@stacks]. It also uses probabilities instead of the final classification, etc. Then, it fits a penalized logistic model with each model estimate as a predictor and the final classification as the outcome, which helps to alleviate the almost certainly high multicollinearity between the individual models [@TMWR]. We tune the stacked model with cross-validation to find the best weights for each individual model.
 
-I took the mode instead, in effect weighing all members equally. I did decide to use both random forest models and both gradient-boosting decision tree models to weigh those more heavily than the logistic regression model. To use model stacking with `stacks` one must save a much larger part of the tuning results than I did; I would have had to re-fit all the models, which was not possible at that stage.
+I took the mode instead, in effect weighing the five final models equally. I did decide to use both random forest models and both gradient-boosting decision tree models to weigh those more heavily than the logistic regression model. To use model stacking with `stacks`, one must save a much larger part of the tuning results than I did; I would have had to re-fit all the models, which was not possible at that stage.
 
 # Results
 
@@ -171,7 +171,7 @@ I submitted the Bayesian-tuned boosting model and the stacked model for the priv
 
 ## Interpretability
 
-Interpreting variable importance in a stacked model is difficult, even more so because of my imperfect implementation. Thus, I will look at variable importance in the boosted model, which was the next-best performer.
+Interpreting variable importance in my imperfect implementation of a stacked model is difficult, so I will look at variable importance in the boosted model, which was the next-best performer.
 
 ```{r}
 load("final_models/tune_bayes_bt_final_15_39_55.Rds")
@@ -277,12 +277,14 @@ final_preds |>
 
 I spent a lot of time thinking about model training and stacking. @tbl-six-res shows the results of each of the five individual models and the stacked model on the leaderboard data, split between the public and private leaderboards. As I discussed in @sec-pred, I finished in fifth place overall thanks to the stacking model, which saw a large increase in performance from its place on the public leaderboard.
 
+To be clear, of the six models in @tbl-six-res, I only submitted "Stack" and "Random forest, grid" to the leaderboard. My other three submissions were for models I did not use in the stack. The five individual models listed in @tbl-six-res were the ones I used to create the stack that I submitted to the leaderboard.
+
 All my models improved on the private leaderboard. The improvements in each of the individual models carried over to improvements in the stacked model. As I alluded to in @sec-stacking, stacked models decrease overfitting by using a voting philosophy: Multiple models will know better than just one. We can see this in action by looking at some accuracy metrics for the stacking apparatus depending on how many individual models predicted a connection.
 
 ```{r}
 #| label: fig-metrics
 #| fig-height: 4
-#| fig-cap: Balanced accuracy, sensitiviy, and specificity depending on cutoff for stacked model to predict 'connected'
+#| fig-cap: Balanced accuracy, sensitivity, and specificity depending on cutoff for stacked model to predict 'connected'
 sens_spec_bal <- yardstick::metric_set(yardstick::sens, yardstick::spec, yardstick::bal_accuracy)
 
 purrr::map_dfr(
@@ -315,22 +317,21 @@ purrr::map_dfr(
 																"Specificity" = "#00798c"))
 ```
 
-If we require just one model to predict 'connected' to return an overall prediction of 'connected' in our stack, then @fig-metrics shows specificity will be quite low on the testing data, suggesting that we overfit. This makes sense since one vote in favor and four against connectivity intuitively suggests a false positive. Balanced accuracy is the average of sensitivity and specificity, so we must _balance_ the two. We find a good balance when at least three or four models predict 'connected.'
+If we require just one model to predict 'connected' to return an overall prediction of 'connected' in our stack, then @fig-metrics shows specificity will be quite low on the testing data, suggesting that we overfit. This makes sense since one vote in favor and four against connectivity intuitively suggests a false positive. Balanced accuracy is the average of sensitivity and specificity, so we must _balance_ the two. We find a good balance when we require at least three or four models to predict 'connected.'
 
 As I wrote in @sec-stacking, my stacking method was imperfect since I assigned equal weights to each individual model. The final stacked predictions were much more correlated with the Bayesian optimization-tuned gradient-boosting decision tree model (`r cor(as.numeric(final_preds$pred_final_stack), as.numeric(final_preds$pred_final_bayes_bt)) |> round(3)`) than the random forest model tuned on a grid (`r cor(as.numeric(final_preds$pred_final_stack), as.numeric(final_preds$pred_final_grid_rf)) |> round(3)`). Also, as expected the two random forest models were highly correlated with each other, as were the two gradient-boosting models. Had I properly implemented stacking, we would have ran penalized logistic regression on 30 penalized logistic regression models, 16 random forest models, and 40 gradient-boosting models.
 
 ## Future directions
 
-I wrote about many future directions in @sec-disc-features. Broadly, I believe that I needed a different approach to incorporating the morphological embeddings and feature weights. I would consider trying to include all 1,088 as predictors.
+I wrote about many future directions in @sec-disc-features. Broadly, I believe that I needed a different approach to incorporating the morphological embeddings and feature weights. I would consider trying to include all 1,088 matched columns as predictors.
 
-There are also a few other tuning methods I could have used from the `finetune` package [@finetune]. For instance, I could have chosen simulated annealing or a racing method.
+There are also a few other tuning methods I could have used from the `finetune` package [@finetune]. For instance, I could have chosen simulated annealing or a racing method, which would have allowed me to use a higher number of folds in my cross-validation setup without sacrificing too much speed.
 
-However, I believe the most substantial benefit would have come from tuning on larger grids and stacking properly. By initially tuning on a larger, wider grid, I would give the Bayesian optimization process more information to work with; I could then run more than 10 iterations to find even better hyperparameter tuples. I also wish I had used ten folds instead of three in the cross-validation. I could have had hundreds of models tuned with a wide variety of hyperparameters to pass into a proper stacking method. This would have almost certainly further reduced overfitting and resulted in a stronger model.
+However, I believe the most substantial benefit would have come from tuning on larger grids and stacking properly. By initially tuning on a larger, wider grid, I would give the Bayesian optimization process more information to work with; I could then run more than 10 iterations to find even better hyperparameter tuples. I also wish I had used ten folds instead of three in the cross-validation. I could have had hundreds of models tuned with a wide variety of hyperparameters to pass into a proper stacking method. This would have almost certainly built a more robust and strong model.
 
 # Acknowledgements {-}
 
 I worked alone and completed every step myself. I wrote all code in R and fit models using packages from the `tidymodels` framework [@tidymodels]. I wrote this final paper in Quarto using an IEEE theme from David Folio [-@TemplateIEEE].
-
 
 # References {-}
 
