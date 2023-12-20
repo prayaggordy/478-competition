@@ -58,6 +58,7 @@ tree_rec <- recipe(connected ~ ., data = trees_train_fe) |>
 ```{r}
 set.seed(123)
 rs <- vfold_cv(trees_train_fe, v = 3, strata = connected)
+metric <- metric_set(bal_accuracy)
 ```
 
 ## Logistic
@@ -76,8 +77,6 @@ logistic_spec <- logistic_reg(penalty = tune(), mixture = tune()) |>
 logistic_tune_wf <- workflow() |>
 	add_recipe(logistic_rec) |>
 	add_model(logistic_spec)
-
-metric <- metric_set(bal_accuracy)
 ```
 
 ```{r}
@@ -91,7 +90,7 @@ logistic_grid <- logistic_tune_wf |>
 
 registerDoSEQ()
 
-save(logistic_grid, file = paste0("tune_grid_logistic_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+save(logistic_grid, file = paste0("grid_results/tune_grid_logistic_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
@@ -102,7 +101,7 @@ final_logistic_wf <- workflow() |>
 final_logistic_res <- final_logistic_wf |>
   fit(data = trees_train_fe)
 
-save(final_logistic_res, file = paste0("tune_grid_logistic_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+save(final_logistic_res, file = paste0("final_models/tune_grid_logistic_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
@@ -111,24 +110,23 @@ final_logistic_res |>
 	bal_accuracy(connected, .pred_class)
 ```
 
-## Back to RF
+## RF
 
 ```{r}
-spec <- rand_forest(mode = "classification", engine = "ranger",
-										mtry = tune(), trees = tune(), min_n = tune())
-metric <- metric_set(bal_accuracy)
+rf_spec <- rand_forest(mode = "classification", engine = "ranger",
+											 mtry = tune(), trees = tune(), min_n = tune())
 ```
 
 ```{r}
-wf <- workflow() |>
+rf_wf <- workflow() |>
 	add_recipe(tree_rec) |>
-	add_model(spec)
+	add_model(rf_spec)
 ```
 
 ```{r}
 registerDoMC(cores = 7)
 
-res_grid <- wf |> 
+rf_res_grid <- rf_wf |> 
 	tune_grid(resamples = rs, 
 						metrics = metric,
 						grid = tibble::tribble(
@@ -144,22 +142,22 @@ res_grid <- wf |>
 
 registerDoSEQ()
 
-save(res_grid, file = paste0("tune_grid_rf_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+save(rf_res_grid, file = paste0("grid_results/tune_grid_rf_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
-final_wf <- workflow() |>
+rf_final_wf <- workflow() |>
   add_recipe(tree_rec) |>
-  add_model(finalize_model(spec, select_best(res_grid)))
+  add_model(finalize_model(rf_spec, select_best(rf_res_grid)))
 
-final_res <- final_wf |>
+rf_final_res <- rf_final_wf |>
   fit(data = trees_train_fe)
 
-save(final_res, file = paste0("tune_grid_rf_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+save(rf_final_res, file = paste0("final_models/tune_grid_rf_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
-final_res |>
+rf_final_res |>
   extract_fit_engine() |>
 	predict(DF_TEST) |>
 	purrr::pluck("predictions") |>
@@ -167,11 +165,11 @@ final_res |>
 	dplyr::mutate(estimate = ifelse(`TRUE` > `FALSE`, "True", "False")) |>
 	dplyr::bind_cols(DF_TEST |> dplyr::select(ID)) |>
 	dplyr::select(ID, connected = estimate) |>
-	readr::write_csv(paste0("PRED_tune_grid_rf_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
+	readr::write_csv(paste0("predictions/PRED_tune_grid_rf_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
 ```
 
 ```{r}
-final_res |>
+rf_final_res |>
   extract_fit_engine() |>
 	predict(trees_test_fe) |>
 	purrr::pluck("predictions") |>
@@ -187,39 +185,39 @@ final_res |>
 
 
 ```{r}
-load("tune_grid_rf_15_15_53.Rds")
+load("grid_results/tune_grid_rf_15_15_53.Rds")
 ```
 
 ```{r}
 registerDoMC(cores = 7)
 
-res <- wf |> 
+rf_res_bayes <- rf_wf |> 
 	tune_bayes(resamples = rs, 
 						 metrics = metric,
-						 initial = res_grid,
+						 initial = rf_res_grid,
 						 param_info = parameters(mtry(range = c(2, 10)),
-						 												trees(range = c(2000, 6000)),
-						 												min_n(range = c(15000, 40000))),
+						 									 			 trees(range = c(2000, 6000)),
+						 									 			 min_n(range = c(15000, 40000))),
 						 control = control_bayes(verbose = TRUE))
 
 registerDoSEQ()
 
-save(res, file = paste0("tune_bayes_rf_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+save(rf_res_bayes, file = paste0("grid_results/tune_bayes_rf_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
-final_bayes_wf <- workflow() |>
+rf_final_bayes_wf <- workflow() |>
   add_recipe(tree_rec) |>
-  add_model(finalize_model(spec, select_best(res)))
+  add_model(finalize_model(rf_spec, select_best(rf_res_bayes)))
 
-final_bayes_res <- final_bayes_wf |>
+rf_final_bayes_res <- rf_final_bayes_wf |>
   fit(data = trees_train_fe)
 
-save(final_bayes_res, file = paste0("tune_bayes_rf_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+save(rf_final_bayes_res, file = paste0("final_models/tune_bayes_rf_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
-final_bayes_res |>
+rf_final_bayes_res |>
   extract_fit_engine() |>
 	predict(DF_TEST) |>
 	purrr::pluck("predictions") |>
@@ -227,7 +225,7 @@ final_bayes_res |>
 	dplyr::mutate(estimate = ifelse(`TRUE` > `FALSE`, "True", "False")) |>
 	dplyr::bind_cols(DF_TEST |> dplyr::select(ID)) |>
 	dplyr::select(ID, connected = estimate) |>
-	readr::write_csv(paste0("PRED_tune_bayes_rf_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
+	readr::write_csv(paste0("predictions/PRED_tune_bayes_rf_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
 ```
 
 ## Boosting
@@ -256,13 +254,6 @@ bt_grid <- grid_latin_hypercube(
   learn_rate(),
   size = 30
 )
-
-metric <- metric_set(bal_accuracy)
-```
-
-```{r}
-set.seed(123)
-rs <- vfold_cv(trees_train_fe, v = 3, strata = connected)
 ```
 
 ```{r}
@@ -274,7 +265,7 @@ bt_wf <- workflow() |>
 ```{r}
 registerDoMC(cores = 7)
 
-res_bt <- bt_wf |> 
+res_bt_grid <- bt_wf |> 
 	tune_grid(resamples = rs, 
 						metrics = metric,
 						grid = bt_grid,
@@ -282,26 +273,26 @@ res_bt <- bt_wf |>
 
 registerDoSEQ()
 
-save(res_bt, file = paste0("tune_grid_bt_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+save(res_bt_grid, file = paste0("grid_results/tune_grid_bt_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
-final_bt_wf <- workflow() |>
+final_bt_wf_grid <- workflow() |>
   add_recipe(bt_rec) |>
-  add_model(finalize_model(bt_spec, select_best(res_bt)))
+  add_model(finalize_model(bt_spec, select_best(res_bt_grid)))
 
-final_bt_res <- final_bt_wf |>
+final_bt_res_grid <- final_bt_wf_grid |>
   fit(data = trees_train_fe)
 
-save(final_bt_res, file = paste0("tune_grid_bt_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+save(final_bt_res_grid, file = paste0("final_models/tune_grid_bt_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
-augment(final_bt_res, new_data = DF_TEST) |>
+augment(final_bt_res_grid, new_data = DF_TEST) |>
 	dplyr::select(ID, .pred_class) |>
 	dplyr::mutate(connected = as.character(.pred_class) |> stringr::str_to_title()) |>
 	dplyr::select(ID, connected) |>
-	readr::write_csv(paste0("PRED_tune_grid_bt_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
+	readr::write_csv(paste0("predictions/PRED_tune_grid_bt_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
 ```
 
 ```{r}
@@ -310,7 +301,7 @@ registerDoMC(cores = 7)
 res_bayes_bt <- bt_wf |> 
 	tune_bayes(resamples = rs, 
 						 metrics = metric,
-						 initial = res_bt,
+						 initial = res_bt_grid,
 						 param_info = parameters(mtry(range = c(3, 44)), trees(range = c(1000, 4000)), 
 						 												min_n(range = c(20, 60)), sample_prop(range = c(0.1, 1)),
 						 												tree_depth(), learn_rate(), loss_reduction()),
@@ -318,7 +309,7 @@ res_bayes_bt <- bt_wf |>
 
 registerDoSEQ()
 
-save(res_bayes_bt, file = paste0("tune_bayes_bt_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+save(res_bayes_bt, file = paste0("grid_results/tune_bayes_bt_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
@@ -329,7 +320,7 @@ final_bt_wf_bayes <- workflow() |>
 final_bt_res_bayes <- final_bt_wf_bayes |>
   fit(data = trees_train_fe)
 
-save(final_bt_res, file = paste0("tune_bayes_bt_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
+save(final_bt_res, file = paste0("final_models/tune_bayes_bt_final_", format(Sys.time(), "%H_%M_%S"), ".Rds"))
 ```
 
 ```{r}
@@ -337,7 +328,7 @@ augment(final_bt_res_bayes, new_data = DF_TEST) |>
 	dplyr::select(ID, .pred_class) |>
 	dplyr::mutate(connected = as.character(.pred_class) |> stringr::str_to_title()) |>
 	dplyr::select(ID, connected) |>
-	readr::write_csv(paste0("PRED_tune_bayes_bt_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
+	readr::write_csv(paste0("predictions/PRED_tune_bayes_bt_final_", format(Sys.time(), "%H_%M_%S"), ".csv"))
 ```
 
 ## Stacking
@@ -422,7 +413,7 @@ final_test_preds |>
 									forcats::fct_relevel(c("TRUE", "FALSE"))) |>
 	dplyr::mutate(connected = as.character(mode_true) |> stringr::str_to_title()) |>
 	dplyr::select(ID, connected) |>
-	readr::write_csv(paste0("PRED_stack", format(Sys.time(), "%H_%M_%S"), ".csv"))
+	readr::write_csv(paste0("predictions/PRED_stack", format(Sys.time(), "%H_%M_%S"), ".csv"))
 ```
 
 ```{r}
